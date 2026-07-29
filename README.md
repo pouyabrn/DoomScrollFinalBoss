@@ -3,11 +3,12 @@
 Daily AI news from the useful parts of the internet, minus the part where you lose
 three hours and somehow end up reading model benchmark discourse at 2am.
 
-This is a private, one-person email briefing built in a public repo. It reads a curated
-set of official feeds, research feeds, expert newsletters, OpenRouter, approved Reddit,
-and the official X API. It clusters duplicate stories, ranks what actually matters,
-writes an ELI5 explanation for each pick, sends at most 20, then ends with a cautious
-2–3 line read on what might happen in AI next week.
+This is a private email briefing for you and up to nine people you trust, built in a
+public repo without putting the private list in Git. It reads a curated set of official
+feeds, research feeds, expert newsletters, OpenRouter, approved Reddit, and the
+official X API. It clusters duplicate stories, ranks what actually matters, writes an
+ELI5 explanation for each pick, sends at most 20, then ends with a cautious 2–3 line
+read on what might happen in AI next week.
 
 The initial architecture and implementation pass was built with Codex SOL 5.6. The
 repo is aggressively tested because “the model will probably return valid JSON” is how
@@ -103,8 +104,9 @@ When `doctor --strict` is clean:
 uv run finalboss run
 ```
 
-That is a real send. The database ledger and Resend idempotency key make reruns for the
-same recipient/date safe.
+That is a real send. The newsletter is generated once, then every configured person
+gets a separate email. The database ledger and Resend idempotency key make reruns for
+each recipient/date safe.
 
 If you genuinely want another copy of the already-sent edition:
 
@@ -144,12 +146,23 @@ edition, choose `force-resend` and tick the confirmation checkbox. Once everythi
 works, add a repository Actions variable named `FINALBOSS_ENABLED` with value `true`;
 scheduled delivery stays disabled until that explicit switch exists.
 
-### change the recipient
+### change the recipient list
 
-This private deployment intentionally sends to one address. Go to Settings →
-Environments → `production` → Environment secrets, then update
-`FINALBOSS_EMAIL_TO`. From an authenticated terminal, the equivalent command prompts
-for the new value without putting it in the repository:
+Go to Settings → Environments → `production` → Environment secrets, then edit
+`FINALBOSS_EMAIL_TO`. Put one address on each line, up to ten:
+
+```text
+you@example.com
+friend@example.com
+another-friend@example.com
+```
+
+Commas and semicolons also work, but one per line is harder to mess up. Duplicates and
+case variants are collapsed. Every person gets a separate provider request, never a
+visible CC/BCC list.
+
+From an authenticated terminal, this command safely prompts for the multiline value
+instead of putting it in the repository or command history:
 
 ```bash
 gh secret set FINALBOSS_EMAIL_TO \
@@ -158,10 +171,13 @@ gh secret set FINALBOSS_EMAIL_TO \
 ```
 
 The `onboarding@resend.dev` test sender can send only to the address that owns the
-Resend account. Verify a sending domain in Resend before switching to another person.
-One deployment per recipient keeps addresses isolated and prevents recipients from
-seeing each other; bulk subscriber delivery is intentionally outside this private
-mode.
+Resend account. Before adding anyone else, verify a domain you own in Resend and change
+`FINALBOSS_EMAIL_FROM` to something like `Final Boss <news@updates.yourdomain.com>`.
+Recipients do not need to be added to Resend Contacts.
+
+After changing the list, run the normal `send` action. Anyone already sent that day's
+edition is skipped; newly added people get the exact stored edition without another
+crawl or LLM bill. Removing an address stops future attempts for it.
 
 ### change the delivery time
 
@@ -201,8 +217,9 @@ prompt, or provider response belongs in Git.
 
 The workflow has read-only repository permissions, no secret-bearing PR job, pinned
 Action SHAs, no production email artifacts, and no public newsletter archive. Resend
-tracking stays off. The database stores a keyed recipient fingerprint rather than the
-address.
+tracking stays off. The database stores a keyed fingerprint per recipient rather than
+an address. Addresses exist only in the private environment secret and in memory while
+that run sends.
 
 “Private” still has a real-world boundary: GitHub runs the code, Neon stores the ledger,
 OpenRouter processes the editorial batch, Resend transports the message, and your mail

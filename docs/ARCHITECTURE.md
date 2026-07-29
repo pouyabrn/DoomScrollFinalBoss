@@ -40,10 +40,10 @@ X Recent Search ────┘          |
              Jinja + CSS inline        plain text render
                   └────────────┬────────────┘
                                v
-                  Postgres pending outbox record
+                Postgres pending outbox rows per recipient
                                |
                                v
-                    Resend idempotent delivery
+              one idempotent Resend request per recipient
                                |
                                v
                       ledger marked as sent
@@ -122,6 +122,12 @@ Delivery flow:
 
 Production aborts when the database schema is unavailable. It never sends first and
 tries to remember later.
+
+For a list of up to ten recipients, the pipeline renders one edition and creates every
+recipient outbox row before provider contact. Addresses stay in process memory only;
+the public logs and private database use safe counts and keyed fingerprints. Adding a
+recipient later that day clones the persisted edition instead of recollecting or
+calling the LLM. Conflicting stored payloads fail closed.
 
 ## Failure policy
 

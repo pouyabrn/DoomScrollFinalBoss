@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
-from finalboss.config import Settings, load_configuration
+from finalboss.config import MAX_RECIPIENTS, Settings, load_configuration, parse_recipient_emails
 from finalboss.models import FeedDefinition, SitemapDefinition, SourceRegistry
 
 
@@ -63,3 +63,31 @@ def test_source_ids_are_globally_unique() -> None:
     )
     with pytest.raises(ValidationError, match="globally unique"):
         SourceRegistry(feeds=[feed], sitemaps=[sitemap])
+
+
+def test_recipient_list_normalizes_and_deduplicates_private_addresses() -> None:
+    recipients = parse_recipient_emails(
+        SecretStr("Owner@EXAMPLE.com,\r\nfriend@example.com; owner@example.com\nthird@example.com")
+    )
+    assert recipients == (
+        "Owner@example.com",
+        "friend@example.com",
+        "third@example.com",
+    )
+
+
+def test_recipient_limit_applies_after_deduplication() -> None:
+    repeated = ["owner@example.com"] * (MAX_RECIPIENTS + 1)
+    assert parse_recipient_emails(SecretStr(",".join(repeated))) == ("owner@example.com",)
+
+    unique = [f"person-{index}@example.com" for index in range(MAX_RECIPIENTS + 1)]
+    with pytest.raises(ValueError, match=f"at most {MAX_RECIPIENTS}"):
+        parse_recipient_emails(SecretStr("\n".join(unique)))
+
+
+def test_invalid_recipient_error_does_not_expose_the_value() -> None:
+    private_value = "private-person-at-example.com"
+    with pytest.raises(ValueError, match="invalid email") as captured:
+        parse_recipient_emails(SecretStr(private_value))
+    assert private_value not in str(captured.value)
+    assert captured.value.__cause__ is None

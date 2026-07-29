@@ -97,3 +97,63 @@ def test_force_resend_ledger_retries_then_advances(
     with pytest.raises(ValueError, match="limit"):
         database.reserve_resend(stored.id, max_resends=2)
     database.close()
+
+
+def test_clone_creates_an_independent_pending_delivery(
+    tmp_path: object,
+    make_story: Callable[..., Story],
+) -> None:
+    database = Database(f"sqlite:///{tmp_path.joinpath('clone.db')}")
+    database.initialize(allow_create=True)
+    original = database.save_pending_digest(
+        digest=_digest(make_story()),
+        rendered=RenderedDigest(subject="Test", html="<p>Test</p>", text="Test"),
+        recipient_hmac=recipient_fingerprint("first@example.com", "x" * 32),
+    )
+    database.mark_sent(original.id, "message-original")
+
+    clone = database.clone_pending_digest(
+        source_digest_id=original.id,
+        recipient_hmac=recipient_fingerprint("second@example.com", "x" * 32),
+    )
+
+    assert clone.id != original.id
+    assert clone.status == "pending"
+    assert clone.rendered == original.rendered
+    assert clone.item_count == original.item_count == 1
+    database.close()
+
+
+def test_force_resend_batch_retries_only_incomplete_recipients(
+    tmp_path: object,
+    make_story: Callable[..., Story],
+) -> None:
+    database = Database(f"sqlite:///{tmp_path.joinpath('batch.db')}")
+    database.initialize(allow_create=True)
+    rendered = RenderedDigest(subject="Test", html="<p>Test</p>", text="Test")
+    first = database.save_pending_digest(
+        digest=_digest(make_story(1)),
+        rendered=rendered,
+        recipient_hmac=recipient_fingerprint("first@example.com", "x" * 32),
+    )
+    second = database.save_pending_digest(
+        digest=_digest(make_story(1)),
+        rendered=rendered,
+        recipient_hmac=recipient_fingerprint("second@example.com", "x" * 32),
+    )
+    database.mark_sent(first.id, "message-first")
+    database.mark_sent(second.id, "message-second")
+
+    initial = database.reserve_resends([first.id, second.id], max_resends=2)
+    database.mark_resend_sent(initial[first.id].id, "resend-first")
+    database.mark_resend_failed(initial[second.id].id, "TimeoutError")
+
+    retry = database.reserve_resends([first.id, second.id], max_resends=2)
+    assert set(retry) == {second.id}
+    assert retry[second.id].id == initial[second.id].id
+    database.mark_resend_sent(retry[second.id].id, "resend-second")
+
+    next_batch = database.reserve_resends([first.id, second.id], max_resends=2)
+    assert set(next_batch) == {first.id, second.id}
+    assert {reservation.sequence for reservation in next_batch.values()} == {2}
+    database.close()

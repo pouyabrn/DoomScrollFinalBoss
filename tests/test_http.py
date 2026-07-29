@@ -1,6 +1,6 @@
 import pytest
 import respx
-from httpx import Response
+from httpx import HTTPStatusError, Response
 
 from finalboss.config import NetworkConfig
 from finalboss.http import (
@@ -72,3 +72,22 @@ async def test_get_json_requires_an_object() -> None:
     async with BoundedHttpClient(config) as client:
         with pytest.raises(ValueError, match="object"):
             await client.get_json("https://example.com/data")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_http_client_does_not_retry_permanent_client_errors() -> None:
+    route = respx.post("https://example.com/send").mock(
+        side_effect=[
+            Response(403, json={"message": "forbidden"}),
+            Response(200, json={"id": "must-not-be-used"}),
+        ]
+    )
+    config = NetworkConfig(user_agent="FinalBossTest/1.0 (+https://example.com)")
+    async with BoundedHttpClient(config) as client:
+        with pytest.raises(HTTPStatusError):
+            await client.post_json(
+                "https://example.com/send",
+                json_body={"safe": "fixture"},
+            )
+    assert len(route.calls) == 1

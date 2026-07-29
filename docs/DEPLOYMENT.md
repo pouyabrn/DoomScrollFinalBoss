@@ -28,8 +28,9 @@ For a self-newsletter, the fastest free start is:
 4. Set `FINALBOSS_EMAIL_TO` to the email that owns the Resend account.
 5. Keep open/click tracking disabled.
 
-For another recipient or a real sender address, verify a domain with SPF/DKIM and add
-DMARC before changing the sender.
+For multiple recipients or a real sender address, verify a domain you own with
+SPF/DKIM and add DMARC before changing the sender. Resend Contacts/Audiences are not
+used by this app.
 
 ## 3. OpenRouter
 
@@ -121,16 +122,34 @@ For an intentional second copy on the same day, choose `force-resend` and tick
 `confirm_force`. This sends the already stored edition with a separate audited
 idempotency key; it does not run collection or OpenRouter again.
 
-## Change the recipient
+## Change the recipient list
 
 Update the `FINALBOSS_EMAIL_TO` environment secret under Settings → Environments →
-`production`. Do not put an address in workflow YAML, repository variables, an issue,
-or a command argument that will remain in shell history.
+`production`. Store one address per line, up to ten:
 
-The current private mode supports one recipient per deployment. Use a separate
-deployment for another recipient so delivery ledgers and addresses stay isolated.
-Resend's test domain can deliver only to the Resend account owner's address; verify a
-domain before sending to anyone else.
+```text
+you@example.com
+friend@example.com
+another-friend@example.com
+```
+
+Comma- and semicolon-separated input also works. The app validates, normalizes, and
+deduplicates the private list before any provider request. Do not put addresses in
+workflow YAML, repository variables, an issue, or a command argument that will remain
+in shell history.
+
+The digest is rendered once. Delivery then fans out as one request with exactly one
+`To` address per person, so recipients never see each other. A failure is recorded and
+retried independently without duplicating successful deliveries.
+
+Resend's test domain can deliver only to the Resend account owner's address. Verify a
+domain before configuring multiple people, then set `FINALBOSS_EMAIL_FROM` to an
+address at that verified domain. The address does not need to be created inside
+Resend.
+
+Run the normal `send` action after editing the list. Existing recipients are skipped
+for that edition; new recipients receive the stored payload without collection,
+ranking, or another OpenRouter call.
 
 ## Change the schedule
 

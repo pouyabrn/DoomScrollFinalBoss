@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
 import yaml
+from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from finalboss.models import SourceRegistry
+
+MAX_RECIPIENTS = 10
 
 
 class NewsletterConfig(BaseModel):
@@ -143,3 +147,25 @@ def load_configuration(settings: Settings) -> tuple[PublicConfig, SourceRegistry
 
 def secret_value(secret: SecretStr | None) -> str | None:
     return secret.get_secret_value() if secret is not None else None
+
+
+def parse_recipient_emails(secret: SecretStr | None) -> tuple[str, ...]:
+    value = secret_value(secret)
+    if not value:
+        return ()
+    candidates = [item.strip() for item in re.split(r"[,;\n]+", value) if item.strip()]
+
+    recipients: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            normalized = validate_email(candidate, check_deliverability=False).normalized
+        except EmailNotValidError:
+            raise ValueError("recipient list contains an invalid email address") from None
+        identity = normalized.casefold()
+        if identity not in seen:
+            seen.add(identity)
+            recipients.append(normalized)
+    if len(recipients) > MAX_RECIPIENTS:
+        raise ValueError(f"at most {MAX_RECIPIENTS} newsletter recipients are allowed")
+    return tuple(recipients)
