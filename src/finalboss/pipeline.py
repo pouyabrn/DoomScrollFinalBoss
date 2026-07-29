@@ -11,7 +11,11 @@ from finalboss.config import PublicConfig, Settings, secret_value
 from finalboss.email.renderer import DigestRenderer
 from finalboss.email.resend import ResendSender
 from finalboss.http import BoundedHttpClient
-from finalboss.llm.editor import OpenRouterEditor, deterministic_editorial
+from finalboss.llm.editor import (
+    OpenRouterEditor,
+    deterministic_editorial,
+    ensure_editorial_coverage,
+)
 from finalboss.models import (
     CollectionResult,
     Digest,
@@ -138,6 +142,11 @@ class DigestPipeline:
                     raise RuntimeError("no credible, unsent stories were collected")
 
                 editorial, model_used = await self._edit(candidates, client=client)
+                editorial = ensure_editorial_coverage(
+                    editorial,
+                    candidates,
+                    top_n=self._config.newsletter.top_n,
+                )
                 selected = final_select(candidates, editorial.items, self._config.newsletter)
                 if not selected:
                     raise RuntimeError("no stories passed the editorial threshold")

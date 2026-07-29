@@ -25,7 +25,8 @@ Editorial rules:
 - ELI5 means plain language a smart non-specialist understands. Explain the concrete change,
   not hype.
 - why_it_matters is one grounded sentence.
-- Select no more than the requested count and never pad with weak stories.
+- Every candidate already passed deterministic credibility and recency checks.
+- Select exactly the requested count, ordered from most important to least important.
 - The forecast is explicitly a cautious prediction for the next seven days, in 2-3 short lines,
   grounded in selected item IDs. Do not claim certainty.
 """
@@ -60,7 +61,7 @@ def _response_schema(max_items: int) -> dict[str, Any]:
         "properties": {
             "items": {
                 "type": "array",
-                "minItems": 1,
+                "minItems": max_items,
                 "maxItems": max_items,
                 "items": item,
             },
@@ -123,7 +124,7 @@ class OpenRouterEditor:
         ]
         user_prompt = json.dumps(
             {
-                "task": f"Select and edit up to {min(top_n, len(candidates))} stories.",
+                "task": f"Select and edit exactly {min(top_n, len(candidates))} stories.",
                 "forecast_horizon": "the next seven days",
                 "candidates": records,
             },
@@ -210,8 +211,52 @@ class OpenRouterEditor:
 
 
 def deterministic_editorial(candidates: Sequence[Story], *, top_n: int) -> EditorialResult:
+    items = _grounded_fallback_items(
+        candidates[:top_n],
+        uncertainty="The AI editorial step was unavailable; this summary uses feed text.",
+    )
+    evidence = [item.item_id for item in items[:3]]
+    category = items[0].category if items else "AI"
+    return EditorialResult(
+        items=items,
+        forecast_lines=[
+            f"Next week, watch for follow-up details around the leading {category} stories.",
+            "This is a low-confidence signal based on today's sources, not a guaranteed outcome.",
+        ],
+        forecast_confidence="low",
+        evidence_item_ids=evidence or ["no-evidence"],
+    )
+
+
+def ensure_editorial_coverage(
+    result: EditorialResult,
+    candidates: Sequence[Story],
+    *,
+    top_n: int,
+) -> EditorialResult:
+    """Add honest source-text backups when a provider returns fewer than requested."""
+    target = min(top_n, len(candidates))
+    if len(result.items) >= target:
+        return result
+    existing_ids = {item.item_id for item in result.items}
+    missing = [story for story in candidates if story.id not in existing_ids]
+    backups = _grounded_fallback_items(
+        missing,
+        uncertainty=(
+            "This item uses source text as a grounded backup because the editorial model "
+            "returned a shorter list."
+        ),
+    )
+    return result.model_copy(update={"items": [*result.items, *backups]})
+
+
+def _grounded_fallback_items(
+    candidates: Sequence[Story],
+    *,
+    uncertainty: str,
+) -> list[EditorialItem]:
     items: list[EditorialItem] = []
-    for story in candidates[:top_n]:
+    for story in candidates:
         basis = story.excerpt or story.title
         if len(basis) < 10:
             basis = f"An update was published by {story.source_name}."
@@ -226,17 +271,7 @@ def deterministic_editorial(candidates: Sequence[Story], *, top_n: int) -> Edito
                 ),
                 category=story.category,
                 confidence="low",
-                uncertainty="The AI editorial step was unavailable; this summary uses feed text.",
+                uncertainty=uncertainty,
             )
         )
-    evidence = [item.item_id for item in items[:3]]
-    category = items[0].category if items else "AI"
-    return EditorialResult(
-        items=items,
-        forecast_lines=[
-            f"Next week, watch for follow-up details around the leading {category} stories.",
-            "This is a low-confidence signal based on today's sources, not a guaranteed outcome.",
-        ],
-        forecast_confidence="low",
-        evidence_item_ids=evidence or ["no-evidence"],
-    )
+    return items

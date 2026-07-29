@@ -177,7 +177,7 @@ make audit
 
 Current local gate:
 
-- 38 tests passing
+- 39 tests passing
 - 82%+ branch-aware coverage
 - Ruff clean
 - strict mypy clean

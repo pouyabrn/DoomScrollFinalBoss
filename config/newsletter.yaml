@@ -22,7 +22,7 @@ llm:
   timeout_seconds: 90
   max_attempts: 3
   require_zero_data_retention: false
-  prompt_version: editorial-v1
+  prompt_version: editorial-v2
 
 delivery:
   provider: resend

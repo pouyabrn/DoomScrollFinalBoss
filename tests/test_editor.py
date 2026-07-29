@@ -6,7 +6,11 @@ from httpx import Response
 
 from finalboss.config import LlmConfig, NetworkConfig
 from finalboss.http import BoundedHttpClient
-from finalboss.llm.editor import OpenRouterEditor, deterministic_editorial
+from finalboss.llm.editor import (
+    OpenRouterEditor,
+    deterministic_editorial,
+    ensure_editorial_coverage,
+)
 from finalboss.models import EditorialItem, EditorialResult, Story
 
 
@@ -16,6 +20,19 @@ def test_deterministic_editorial_is_grounded(make_story: Callable[..., Story]) -
     assert [item.item_id for item in result.items] == [story.id for story in stories[:2]]
     assert len(result.forecast_lines) == 2
     assert result.forecast_confidence == "low"
+
+
+def test_short_model_result_is_backfilled_with_grounded_candidates(
+    make_story: Callable[..., Story],
+) -> None:
+    stories = [make_story(index) for index in range(1, 4)]
+    partial = deterministic_editorial(stories[:1], top_n=1).model_copy(
+        update={"forecast_confidence": "medium"}
+    )
+    result = ensure_editorial_coverage(partial, stories, top_n=3)
+    assert [item.item_id for item in result.items] == [story.id for story in stories]
+    assert result.forecast_confidence == "medium"
+    assert "grounded backup" in result.items[-1].uncertainty
 
 
 def test_editor_rejects_unknown_and_duplicate_ids(make_story: Callable[..., Story]) -> None:
@@ -90,9 +107,6 @@ async def test_openrouter_editor_uses_strict_grounded_output(
     request_payload = __import__("json").loads(route.calls[0].request.content)
     assert request_payload["response_format"]["json_schema"]["strict"] is True
     assert request_payload["provider"]["require_parameters"] is True
-    assert (
-        "url"
-        not in request_payload["response_format"]["json_schema"]["schema"]["properties"]["items"][
-            "items"
-        ]["properties"]
-    )
+    item_schema = request_payload["response_format"]["json_schema"]["schema"]["properties"]["items"]
+    assert item_schema["minItems"] == item_schema["maxItems"] == 1
+    assert "url" not in item_schema["items"]["properties"]
