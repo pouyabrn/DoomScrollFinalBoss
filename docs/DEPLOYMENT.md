@@ -117,12 +117,34 @@ Enable:
 7. Run `send` again; it should report `already_sent` without another provider call.
 8. Add a repository Actions variable `FINALBOSS_ENABLED=true`.
 
+For an intentional second copy on the same day, choose `force-resend` and tick
+`confirm_force`. This sends the already stored edition with a separate audited
+idempotency key; it does not run collection or OpenRouter again.
+
+## Change the recipient
+
+Update the `FINALBOSS_EMAIL_TO` environment secret under Settings → Environments →
+`production`. Do not put an address in workflow YAML, repository variables, an issue,
+or a command argument that will remain in shell history.
+
+The current private mode supports one recipient per deployment. Use a separate
+deployment for another recipient so delivery ledgers and addresses stay isolated.
+Resend's test domain can deliver only to the Resend account owner's address; verify a
+domain before sending to anyone else.
+
+## Change the schedule
+
 The cron runs at 08:17 in `Europe/Rome`:
 
 ```yaml
 - cron: "17 8 * * *"
   timezone: "Europe/Rome"
 ```
+
+Cron fields are minute, hour, day of month, month, and day of week. For example,
+`"30 7 * * *"` is 07:30 daily in the configured timezone. Change the workflow through
+the normal protected-branch review path; do not add a second scheduler for the same
+deployment.
 
 Avoid minute `0`, when GitHub schedule load is highest.
 The scheduled job remains safely skipped while `FINALBOSS_ENABLED` is absent or false;

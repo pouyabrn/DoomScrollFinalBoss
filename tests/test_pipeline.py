@@ -66,11 +66,17 @@ async def test_send_pipeline_is_idempotent_across_runs(
     pipeline = DigestPipeline(settings, public, registry)
     first = await pipeline.run(send=True, fixture=fixture)
     second = await pipeline.run(send=True, fixture=fixture)
+    forced = await pipeline.run(send=True, force_resend=True, fixture=fixture)
     assert first.sent is True
     assert second.sent is False
     assert second.metadata["outcome"] == "already_sent"
-    assert len(route.calls) == 1
+    assert forced.sent is True
+    assert forced.metadata["outcome"] == "force_resent"
+    assert forced.metadata["resend_sequence"] == 1
+    assert len(route.calls) == 2
+    assert route.calls[1].request.headers["idempotency-key"].endswith("/resend-1")
     assert "owner@example.com" not in first.model_dump_json()
+    assert "owner@example.com" not in forced.model_dump_json()
 
 
 @pytest.mark.asyncio

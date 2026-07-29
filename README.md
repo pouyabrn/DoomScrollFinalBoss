@@ -106,6 +106,17 @@ uv run finalboss run
 That is a real send. The database ledger and Resend idempotency key make reruns for the
 same recipient/date safe.
 
+If you genuinely want another copy of the already-sent edition:
+
+```bash
+uv run finalboss run --force-resend
+```
+
+That command reuses today's exact stored HTML and text. It does not crawl again or
+spend another LLM request. Each forced copy gets a database-backed resend sequence and
+a distinct Resend idempotency key, so a crashed retry is still safe. The public default
+allows at most three intentional resends per day.
+
 ## deploy the free setup
 
 The default deployment is the checked-in GitHub Actions workflow. It runs every day at
@@ -128,9 +139,54 @@ FINALBOSS_HEALTHCHECK_URL
 
 The last four are optional to the generic project, but X and Reddit credentials are
 needed for the full source mix requested by this instance. Use Actions → Daily digest →
-Run workflow → `validate` first. Then run `send`. Once both work, add a repository
-Actions variable named `FINALBOSS_ENABLED` with value `true`; scheduled delivery stays
-disabled until that explicit switch exists.
+Run workflow → `validate` first. Then run `send`. To send another copy of today's stored
+edition, choose `force-resend` and tick the confirmation checkbox. Once everything
+works, add a repository Actions variable named `FINALBOSS_ENABLED` with value `true`;
+scheduled delivery stays disabled until that explicit switch exists.
+
+### change the recipient
+
+This private deployment intentionally sends to one address. Go to Settings →
+Environments → `production` → Environment secrets, then update
+`FINALBOSS_EMAIL_TO`. From an authenticated terminal, the equivalent command prompts
+for the new value without putting it in the repository:
+
+```bash
+gh secret set FINALBOSS_EMAIL_TO \
+  --repo YOUR_GITHUB_NAME/DoomScrollFinalBoss \
+  --env production
+```
+
+The `onboarding@resend.dev` test sender can send only to the address that owns the
+Resend account. Verify a sending domain in Resend before switching to another person.
+One deployment per recipient keeps addresses isolated and prevents recipients from
+seeing each other; bulk subscriber delivery is intentionally outside this private
+mode.
+
+### change the delivery time
+
+Edit the schedule in [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml):
+
+```yaml
+- cron: "17 8 * * *"
+  timezone: "Europe/Rome"
+```
+
+The fields are `minute hour day-of-month month day-of-week`, so `"30 7 * * *"` means
+07:30 every day in the named timezone. Commit the workflow change to the protected
+default branch. The `timezone` line makes daylight-saving changes automatic.
+
+### send from GitHub right now
+
+Use Actions → Daily digest → Run workflow. Choose `send` for the first copy, or choose
+`force-resend` plus the confirmation checkbox for another copy on the same day.
+
+```bash
+gh workflow run daily-digest.yml \
+  --repo YOUR_GITHUB_NAME/DoomScrollFinalBoss \
+  -f mode=force-resend \
+  -F confirm_force=true
+```
 
 GitHub disables schedules in public repos after 60 days with no repository activity
 and can delay cron during heavy load. A Render Cron blueprint is included as a roughly
@@ -177,8 +233,8 @@ make audit
 
 Current local gate:
 
-- 40 tests passing
-- 82%+ branch-aware coverage
+- 47 tests passing
+- 83%+ branch-aware coverage
 - Ruff clean
 - strict mypy clean
 - Bandit and `pip-audit` in CI

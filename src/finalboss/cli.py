@@ -26,6 +26,11 @@ def _parser() -> argparse.ArgumentParser:
     run = subcommands.add_parser("run", help="Collect, rank, render, and optionally send.")
     run.add_argument("--dry-run", action="store_true", help="Write an HTML preview; never email.")
     run.add_argument(
+        "--force-resend",
+        action="store_true",
+        help="Resend today's stored digest using a new audited delivery key.",
+    )
+    run.add_argument(
         "--fixture", type=Path, help="Use a local story fixture instead of the network."
     )
     run.add_argument("--output", type=Path, help="Dry-run HTML output path.")
@@ -39,12 +44,23 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also require approved Reddit and paid X credentials.",
     )
+    doctor.add_argument(
+        "--delivery-only",
+        action="store_true",
+        help="Require only the secrets needed to deliver a stored digest.",
+    )
 
     subcommands.add_parser("migrate", help="Upgrade the database schema to the latest revision.")
     return parser
 
 
-def _doctor(settings: Settings, *, strict: bool, require_social: bool) -> int:
+def _doctor(
+    settings: Settings,
+    *,
+    strict: bool,
+    require_social: bool,
+    delivery_only: bool,
+) -> int:
     public, registry = load_configuration(settings)
     checks: dict[str, object] = {
         "configuration": "ok",
@@ -74,10 +90,14 @@ def _doctor(settings: Settings, *, strict: bool, require_social: bool) -> int:
             database_ok = False
     checks["database"] = "ok" if database_ok else "failed"
 
-    required = ["openrouter_key", "resend_key", "recipient", "sender", "privacy_key"]
-    if require_social:
+    required: list[str] = []
+    if delivery_only:
+        required.extend(["resend_key", "recipient", "sender", "privacy_key"])
+    elif strict:
+        required.extend(["openrouter_key", "resend_key", "recipient", "sender", "privacy_key"])
+    if require_social and not delivery_only:
         required.extend(["reddit_credentials", "x_credentials"])
-    failed = not database_ok or (strict and any(not checks[key] for key in required))
+    failed = not database_ok or any(not checks[key] for key in required)
     checks["ready"] = not failed
     print(json.dumps(checks, indent=2, sort_keys=True))
     return 1 if failed else 0
@@ -88,17 +108,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = Settings()
     configure_logging(settings.log_level)
     if args.command == "doctor":
-        return _doctor(settings, strict=args.strict, require_social=args.require_social)
+        return _doctor(
+            settings,
+            strict=args.strict,
+            require_social=args.require_social,
+            delivery_only=args.delivery_only,
+        )
     if args.command == "migrate":
         command.upgrade(AlembicConfig("alembic.ini"), "head")
         return 0
     if args.command == "run":
         public, registry = load_configuration(settings)
+        if args.dry_run and args.force_resend:
+            raise SystemExit("--force-resend cannot be combined with --dry-run")
         if not args.dry_run and args.fixture is not None:
             raise SystemExit("--fixture can only be used with --dry-run")
         summary = asyncio.run(
             DigestPipeline(settings, public, registry).run(
                 send=not args.dry_run,
+                force_resend=args.force_resend,
                 fixture=args.fixture,
                 output=args.output,
             )

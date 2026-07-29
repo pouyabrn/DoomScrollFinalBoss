@@ -1,3 +1,5 @@
+# Alternative scheduler only. Do not deploy this cron while GitHub's Daily digest
+# schedule is enabled for the same database and provider credentials.
 services:
   - type: cron
     name: doomscroll-final-boss

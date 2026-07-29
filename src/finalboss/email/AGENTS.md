@@ -6,5 +6,7 @@
 - Escape every source/model field. Links come only from validated application records.
 - Use table-based, 600-640px email markup, inline CSS, no JavaScript, no remote fonts, and no tracking pixels.
 - Keep Resend open/click tracking disabled at the domain level.
-- Every provider call uses `ai-digest/{recipient_hmac}/{local-date}` as its stable idempotency key.
+- The original provider call uses `ai-digest/{recipient_hmac}/{local-date}` as its stable
+  idempotency key. An intentional resend uses the database-reserved
+  `/resend-{sequence}` suffix and must reuse that key after a failed or interrupted attempt.
 - Visual template changes require HTML-escaping tests, a text snapshot, and manual Gmail/Outlook/Apple Mail review.

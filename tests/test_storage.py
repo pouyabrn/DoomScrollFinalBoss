@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 
+import pytest
+
 from finalboss.models import (
     Digest,
     DigestItem,
@@ -62,4 +64,36 @@ def test_database_ledger_is_idempotent(
     assert stored is not None
     assert stored.status == "sent"
     assert len(database.recent_story_fingerprints()) == 1
+    database.close()
+
+
+def test_force_resend_ledger_retries_then_advances(
+    tmp_path: object,
+    make_story: Callable[..., Story],
+) -> None:
+    path = tmp_path.joinpath("state.db")
+    database = Database(f"sqlite:///{path}")
+    database.initialize(allow_create=True)
+    recipient = recipient_fingerprint("owner@example.com", "x" * 32)
+    stored = database.save_pending_digest(
+        digest=_digest(make_story()),
+        rendered=RenderedDigest(subject="Test", html="<p>Test</p>", text="Test"),
+        recipient_hmac=recipient,
+    )
+    database.mark_sent(stored.id, "message-original")
+
+    first = database.reserve_resend(stored.id, max_resends=2)
+    assert first.sequence == 1
+    database.mark_resend_failed(first.id, "TimeoutError")
+    retry = database.reserve_resend(stored.id, max_resends=2)
+    assert retry.id == first.id
+    assert retry.sequence == 1
+
+    database.mark_resend_sent(retry.id, "message-resend-1")
+    second = database.reserve_resend(stored.id, max_resends=2)
+    assert second.id != first.id
+    assert second.sequence == 2
+    database.mark_resend_sent(second.id, "message-resend-2")
+    with pytest.raises(ValueError, match="limit"):
+        database.reserve_resend(stored.id, max_resends=2)
     database.close()

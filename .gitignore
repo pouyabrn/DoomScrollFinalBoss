@@ -10,9 +10,16 @@
 .vscode/
 __pycache__/
 *.egg-info/
+*.key
+*.p12
+*.pfx
+*.pem
 *.py[cod]
 *.sqlite
 *.sqlite3
+credentials.json
+id_ed25519
+id_rsa
 build/
 dist/
 htmlcov/

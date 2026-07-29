@@ -21,10 +21,22 @@ class ResponseTooLargeError(ValueError):
     pass
 
 
+_SENSITIVE_HEADERS = frozenset(
+    {
+        "authorization",
+        "cookie",
+        "proxy-authorization",
+        "x-api-key",
+    }
+)
+
+
 def validate_public_https_url(url: str) -> None:
     parsed = urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname:
         raise UnsafeUrlError("only absolute HTTPS URLs are allowed")
+    if parsed.username is not None or parsed.password is not None:
+        raise UnsafeUrlError("credentials in URLs are not allowed")
     hostname = parsed.hostname.lower().rstrip(".")
     if hostname == "localhost" or hostname.endswith((".local", ".internal", ".localhost")):
         raise UnsafeUrlError("local hostnames are not allowed")
@@ -34,6 +46,15 @@ def validate_public_https_url(url: str) -> None:
         return
     if not address.is_global:
         raise UnsafeUrlError("private or reserved IP addresses are not allowed")
+
+
+def _origin(url: str) -> tuple[str, str, int]:
+    parsed = urlsplit(url)
+    return (
+        parsed.scheme.lower(),
+        (parsed.hostname or "").lower().rstrip("."),
+        parsed.port or 443,
+    )
 
 
 class BoundedHttpClient:
@@ -79,6 +100,8 @@ class BoundedHttpClient:
     ) -> tuple[bytes, httpx.Headers, int]:
         validate_public_https_url(url)
         current_url = url
+        request_headers = headers
+        request_params = params
         redirects = 0
         for attempt in range(1, attempts + 1):
             hostname = urlsplit(current_url).hostname or ""
@@ -89,8 +112,8 @@ class BoundedHttpClient:
                     self._client.stream(
                         method,
                         current_url,
-                        headers=headers,
-                        params=params,
+                        headers=request_headers,
+                        params=request_params,
                         data=data,
                         json=json_body,
                         auth=auth,
@@ -102,8 +125,19 @@ class BoundedHttpClient:
                         location = response.headers.get("location")
                         if not location:
                             response.raise_for_status()
-                        current_url = urljoin(current_url, location)
-                        validate_public_https_url(current_url)
+                        redirected_url = urljoin(current_url, location)
+                        validate_public_https_url(redirected_url)
+                        if _origin(redirected_url) != _origin(current_url):
+                            sensitive_headers = {
+                                name.lower() for name in (request_headers or {})
+                            } & _SENSITIVE_HEADERS
+                            if auth is not None or sensitive_headers or method.upper() != "GET":
+                                raise UnsafeUrlError(
+                                    "authenticated or state-changing cross-origin redirect refused"
+                                )
+                            request_headers = None
+                            request_params = None
+                        current_url = redirected_url
                         redirects += 1
                         continue
                     if response.status_code in {429, 500, 502, 503, 504}:

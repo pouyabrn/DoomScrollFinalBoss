@@ -45,6 +45,7 @@ class DeliveryConfig(BaseModel):
     provider: Literal["resend"] = "resend"
     subject_prefix: str = Field(min_length=1, max_length=80)
     tracking_enabled: bool = False
+    max_force_resends_per_day: int = Field(default=3, ge=1, le=5)
 
     @field_validator("tracking_enabled")
     @classmethod

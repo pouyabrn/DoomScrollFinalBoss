@@ -20,9 +20,12 @@ uv run finalboss doctor --strict --require-social
 uv run finalboss migrate
 uv run finalboss run --dry-run
 uv run finalboss run
+uv run finalboss run --force-resend
 ```
 
-`run` sends. Use `--dry-run` during investigation.
+`run` sends once for the local calendar date. Use `--dry-run` during investigation.
+`--force-resend` sends the exact stored edition again without collecting sources or
+calling the LLM.
 
 ## Common failures
 
@@ -36,7 +39,7 @@ uv run finalboss run
 | Database schema unavailable | `FINALBOSS_DATABASE_URL`, Neon status, migration | Run `finalboss migrate`; do not bypass the ledger |
 | Resend 403 | Test-domain recipient mismatch | Use account-owner recipient or verify a domain |
 | Resend 409 | Changed payload under same key | Keep/retry stored pending body; do not invent a new daily key |
-| `already_sent` | Existing daily ledger row | Expected; no action |
+| `already_sent` | Existing daily ledger row | Expected; use the guarded force-resend only when another copy is intentional |
 | GitHub schedule stopped | Repo inactive for 60 days | Re-enable workflow and manually dispatch |
 
 ## Source maintenance
@@ -66,6 +69,20 @@ The database unique key and Resend idempotency key are layered:
 
 Never delete a pending/failed row merely to force a send. Investigate provider status
 and retry the job.
+
+## Intentional same-day resend
+
+The GitHub workflow exposes `force-resend` with a required confirmation checkbox. It:
+
+1. requires today's original digest to be marked `sent`;
+2. reuses the persisted HTML and plain text;
+3. reserves a numbered resend row before provider contact;
+4. sends with `ai-digest/{recipient_hmac}/{date}/resend-{sequence}`;
+5. retries a pending/failed sequence with the same bytes and key;
+6. creates a new sequence only after the previous resend is recorded as sent;
+7. refuses more than `delivery.max_force_resends_per_day` successful resends.
+
+It does not recrawl, rerank, or consume OpenRouter tokens.
 
 ## Upgrade procedure
 

@@ -7,12 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Validate only, or send today's digest
+        description: Validate, send once, or resend today's stored digest
         type: choice
         options:
           - validate
           - send
+          - force-resend
         default: validate
+        required: true
+      confirm_force:
+        description: Required confirmation for force-resend
+        type: boolean
+        default: false
         required: true
 
 permissions:
@@ -30,16 +36,6 @@ jobs:
     environment: production
     env:
       FINALBOSS_ENVIRONMENT: production
-      FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
-      FINALBOSS_OPENROUTER_API_KEY: ${{ secrets.FINALBOSS_OPENROUTER_API_KEY }}
-      FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
-      FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
-      FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
-      FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
-      FINALBOSS_X_BEARER_TOKEN: ${{ secrets.FINALBOSS_X_BEARER_TOKEN }}
-      FINALBOSS_REDDIT_CLIENT_ID: ${{ secrets.FINALBOSS_REDDIT_CLIENT_ID }}
-      FINALBOSS_REDDIT_CLIENT_SECRET: ${{ secrets.FINALBOSS_REDDIT_CLIENT_SECRET }}
-      FINALBOSS_HEALTHCHECK_URL: ${{ secrets.FINALBOSS_HEALTHCHECK_URL }}
     steps:
       - name: Check out trusted default branch
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -49,17 +45,71 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.0"
+          enable-cache: false
       - name: Install locked runtime
+        run: uv sync --frozen --no-dev
+      - name: Refuse an unconfirmed force resend
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'force-resend' && !inputs.confirm_force }}
         run: |
-          python -m pip install --disable-pip-version-check uv==0.12.0
-          uv sync --frozen --no-dev
+          echo "::error::Force resend requires the confirmation checkbox."
+          exit 1
       - name: Migrate private database
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
         run: uv run finalboss migrate
       - name: Validate production configuration
+        if: ${{ github.event_name == 'schedule' || inputs.mode != 'force-resend' }}
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+          FINALBOSS_OPENROUTER_API_KEY: ${{ secrets.FINALBOSS_OPENROUTER_API_KEY }}
+          FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
+          FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
+          FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
+          FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
         run: uv run finalboss doctor --strict
+      - name: Validate force resend configuration
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'force-resend' && inputs.confirm_force }}
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+          FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
+          FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
+          FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
+          FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
+        run: uv run finalboss doctor --delivery-only
       - name: Validate sources without sending
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'validate'
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+          FINALBOSS_OPENROUTER_API_KEY: ${{ secrets.FINALBOSS_OPENROUTER_API_KEY }}
+          FINALBOSS_X_BEARER_TOKEN: ${{ secrets.FINALBOSS_X_BEARER_TOKEN }}
+          FINALBOSS_REDDIT_CLIENT_ID: ${{ secrets.FINALBOSS_REDDIT_CLIENT_ID }}
+          FINALBOSS_REDDIT_CLIENT_SECRET: ${{ secrets.FINALBOSS_REDDIT_CLIENT_SECRET }}
         run: uv run finalboss run --dry-run --output /tmp/finalboss-preview.html
       - name: Send one idempotent digest
         if: github.event_name == 'schedule' || inputs.mode == 'send'
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+          FINALBOSS_OPENROUTER_API_KEY: ${{ secrets.FINALBOSS_OPENROUTER_API_KEY }}
+          FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
+          FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
+          FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
+          FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
+          FINALBOSS_X_BEARER_TOKEN: ${{ secrets.FINALBOSS_X_BEARER_TOKEN }}
+          FINALBOSS_REDDIT_CLIENT_ID: ${{ secrets.FINALBOSS_REDDIT_CLIENT_ID }}
+          FINALBOSS_REDDIT_CLIENT_SECRET: ${{ secrets.FINALBOSS_REDDIT_CLIENT_SECRET }}
+          FINALBOSS_HEALTHCHECK_URL: ${{ secrets.FINALBOSS_HEALTHCHECK_URL }}
         run: uv run finalboss run
+      - name: Force resend today's stored digest
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'force-resend' && inputs.confirm_force }}
+        env:
+          FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+          FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
+          FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
+          FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
+          FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
+          FINALBOSS_HEALTHCHECK_URL: ${{ secrets.FINALBOSS_HEALTHCHECK_URL }}
+        run: uv run finalboss run --force-resend

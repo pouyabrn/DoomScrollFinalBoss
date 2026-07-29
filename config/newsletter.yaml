@@ -28,6 +28,7 @@ delivery:
   provider: resend
   subject_prefix: AI briefing
   tracking_enabled: false
+  max_force_resends_per_day: 3
 
 network:
   concurrency: 12

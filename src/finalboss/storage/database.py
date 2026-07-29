@@ -86,13 +86,33 @@ class DigestItemRecord(Base):
     digest: Mapped[DigestRecord] = relationship(back_populates="items")
 
 
+class DigestResendRecord(Base):
+    __tablename__ = "digest_resends"
+    __table_args__ = (UniqueConstraint("digest_id", "sequence", name="uq_digest_resend_sequence"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    digest_id: Mapped[str] = mapped_column(ForeignKey("digests.id"), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    provider_message_id: Mapped[str | None] = mapped_column(String(100))
+    error_category: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 @dataclass(frozen=True)
 class StoredDigest:
     id: str
     edition_date: date
     status: str
     rendered: RenderedDigest
-    provider_message_id: str | None
+
+
+@dataclass(frozen=True)
+class StoredResend:
+    id: str
+    sequence: int
+    status: str
 
 
 def recipient_fingerprint(email: str, privacy_key: str) -> str:
@@ -242,6 +262,56 @@ class Database:
             record.status = "failed"
             record.error_category = error_category[:100]
 
+    def reserve_resend(self, digest_id: str, *, max_resends: int) -> StoredResend:
+        """Reserve one retry-safe resend sequence for an already sent digest."""
+        with self._sessions.begin() as session:
+            digest = session.scalar(
+                select(DigestRecord).where(DigestRecord.id == digest_id).with_for_update()
+            )
+            if digest is None:
+                raise ValueError("digest ledger record is missing")
+            if digest.status != "sent":
+                raise ValueError("only a sent digest can be force resent")
+
+            latest = session.scalar(
+                select(DigestResendRecord)
+                .where(DigestResendRecord.digest_id == digest_id)
+                .order_by(DigestResendRecord.sequence.desc())
+                .limit(1)
+            )
+            if latest is not None and latest.status != "sent":
+                return _to_stored_resend(latest)
+            if latest is not None and latest.sequence >= max_resends:
+                raise ValueError("daily force resend limit reached")
+
+            resend = DigestResendRecord(
+                id=str(uuid.uuid4()),
+                digest_id=digest_id,
+                sequence=1 if latest is None else latest.sequence + 1,
+                status="pending",
+                created_at=datetime.now(UTC),
+            )
+            session.add(resend)
+        return _to_stored_resend(resend)
+
+    def mark_resend_sent(self, resend_id: str, provider_message_id: str) -> None:
+        with self._sessions.begin() as session:
+            record = session.get(DigestResendRecord, resend_id)
+            if record is None:
+                raise ValueError("resend ledger record is missing")
+            record.status = "sent"
+            record.provider_message_id = provider_message_id
+            record.sent_at = datetime.now(UTC)
+            record.error_category = None
+
+    def mark_resend_failed(self, resend_id: str, error_category: str) -> None:
+        with self._sessions.begin() as session:
+            record = session.get(DigestResendRecord, resend_id)
+            if record is None:
+                return
+            record.status = "failed"
+            record.error_category = error_category[:100]
+
     def recent_story_fingerprints(self, *, days: int = 30) -> set[str]:
         cutoff = datetime.now(UTC) - timedelta(days=days)
         with self._sessions() as session:
@@ -266,5 +336,12 @@ def _to_stored(record: DigestRecord) -> StoredDigest:
             html=record.html,
             text=record.text,
         ),
-        provider_message_id=record.provider_message_id,
+    )
+
+
+def _to_stored_resend(record: DigestResendRecord) -> StoredResend:
+    return StoredResend(
+        id=record.id,
+        sequence=record.sequence,
+        status=record.status,
     )

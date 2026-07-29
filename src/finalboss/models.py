@@ -212,5 +212,4 @@ class RunSummary(BaseModel):
     sent: bool
     degraded_sources: int
     output_path: str | None = None
-    provider_message_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

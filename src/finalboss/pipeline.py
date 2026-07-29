@@ -56,9 +56,12 @@ class DigestPipeline:
         self,
         *,
         send: bool,
+        force_resend: bool = False,
         fixture: Path | None = None,
         output: Path | None = None,
     ) -> RunSummary:
+        if force_resend and not send:
+            raise ValueError("force resend requires delivery mode")
         now = datetime.now(UTC)
         timezone = ZoneInfo(self._config.newsletter.timezone)
         edition_date = now.astimezone(timezone).date()
@@ -79,6 +82,24 @@ class DigestPipeline:
                 else "dry-run"
             )
             async with BoundedHttpClient(self._config.network) as client:
+                if force_resend:
+                    existing = database.get_digest(
+                        edition_date=edition_date,
+                        recipient_hmac=recipient_hmac,
+                    )
+                    if existing is None or existing.status != "sent":
+                        raise RuntimeError(
+                            "today's sent digest is unavailable; run a normal send first"
+                        )
+                    return await self._force_resend_existing(
+                        existing=existing,
+                        client=client,
+                        database=database,
+                        run_id=run_id,
+                        recipient=recipient or "",
+                        recipient_hmac=recipient_hmac,
+                    )
+
                 if send:
                     existing = database.get_digest(
                         edition_date=edition_date,
@@ -102,7 +123,6 @@ class DigestPipeline:
                                 digest_count=0,
                                 sent=False,
                                 degraded_sources=0,
-                                provider_message_id=existing.provider_message_id,
                                 metadata={"outcome": "already_sent"},
                             )
                         return await self._retry_existing(
@@ -231,7 +251,6 @@ class DigestPipeline:
                     digest_count=digest_count,
                     sent=True,
                     degraded_sources=degraded_sources,
-                    provider_message_id=message_id,
                     metadata={"model": model_used},
                 )
         except Exception as exc:
@@ -327,16 +346,20 @@ class DigestPipeline:
         recipient: str,
         recipient_hmac: str,
         edition_date: str,
+        resend_sequence: int | None = None,
     ) -> str:
         api_key = secret_value(self._settings.resend_api_key)
         sender = secret_value(self._settings.email_from)
         if not api_key or not sender:
             raise RuntimeError("email delivery credentials are missing")
+        idempotency_key = f"ai-digest/{recipient_hmac}/{edition_date}"
+        if resend_sequence is not None:
+            idempotency_key = f"{idempotency_key}/resend-{resend_sequence}"
         return await ResendSender(client, api_key=api_key).send(
             rendered,
             sender=sender,
             recipient=recipient,
-            idempotency_key=f"ai-digest/{recipient_hmac}/{edition_date}",
+            idempotency_key=idempotency_key,
         )
 
     async def _retry_existing(
@@ -374,11 +397,60 @@ class DigestPipeline:
                 digest_count=0,
                 sent=True,
                 degraded_sources=0,
-                provider_message_id=message_id,
                 metadata={"outcome": "retried_pending_digest"},
             )
         except Exception as exc:
             database.mark_failed(existing.id, type(exc).__name__)
+            raise
+
+    async def _force_resend_existing(
+        self,
+        *,
+        existing: StoredDigest,
+        client: BoundedHttpClient,
+        database: Database,
+        run_id: str,
+        recipient: str,
+        recipient_hmac: str,
+    ) -> RunSummary:
+        resend = database.reserve_resend(
+            existing.id,
+            max_resends=self._config.delivery.max_force_resends_per_day,
+        )
+        try:
+            message_id = await self._send(
+                client=client,
+                rendered=existing.rendered,
+                recipient=recipient,
+                recipient_hmac=recipient_hmac,
+                edition_date=existing.edition_date.isoformat(),
+                resend_sequence=resend.sequence,
+            )
+            database.mark_resend_sent(resend.id, message_id)
+            database.finish_run(
+                run_id,
+                status="force_resent",
+                collected_count=0,
+                digest_count=0,
+                degraded_sources=0,
+            )
+            await self._ping_healthcheck(client, failed=False)
+            return RunSummary(
+                run_id=run_id,
+                edition_date=existing.edition_date,
+                collected_count=0,
+                clustered_count=0,
+                candidate_count=0,
+                digest_count=0,
+                sent=True,
+                degraded_sources=0,
+                metadata={
+                    "outcome": "force_resent",
+                    "resend_sequence": resend.sequence,
+                },
+            )
+        except Exception as exc:
+            database.mark_resend_failed(resend.id, type(exc).__name__)
             raise
 
     async def _ping_healthcheck(self, client: BoundedHttpClient, *, failed: bool) -> None:
