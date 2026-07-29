@@ -1,12 +1,13 @@
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 import respx
 from httpx import Response
 
 from finalboss.config import NetworkConfig
-from finalboss.email.renderer import DigestRenderer
+from finalboss.email.renderer import DigestRenderer, _edition_accent
 from finalboss.email.resend import ResendSender
 from finalboss.http import BoundedHttpClient
 from finalboss.models import (
@@ -60,7 +61,25 @@ def test_renderer_escapes_untrusted_content(make_story: Callable[..., Story]) ->
     assert "<img src=x" not in rendered.html
     assert "onerror" not in rendered.html
     assert "Important release" in rendered.html
-    assert "WHAT PROBABLY HAPPENS NEXT WEEK" in rendered.text
+    assert "PREDICTION ENGINE / NEXT 7 DAYS" in rendered.text
+    assert "@media only screen and (max-width: 620px)" in rendered.html
+    assert "https://example1.com/news/model-launch-1" in rendered.html
+    assert "fonts.googleapis.com" not in rendered.html
+    assert "javascript:" not in rendered.html
+
+
+def test_renderer_plain_text_snapshot(make_story: Callable[..., Story]) -> None:
+    rendered = DigestRenderer().render(_digest(make_story()), subject_prefix="Daily")
+    snapshot = Path("tests/snapshots/digest.txt").read_text(encoding="utf-8").strip()
+    assert rendered.text == snapshot
+
+
+def test_edition_accent_is_stable_and_bounded() -> None:
+    edition_date = date(2026, 7, 29)
+    assert _edition_accent(edition_date) == _edition_accent(edition_date)
+    assert _edition_accent(edition_date) == ("signal-yellow", "#FFF000")
+    accents = {_edition_accent(date(2026, 7, day)) for day in range(26, 30)}
+    assert len(accents) >= 2
 
 
 @pytest.mark.asyncio

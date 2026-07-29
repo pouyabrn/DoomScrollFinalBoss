@@ -36,8 +36,8 @@ async def test_fixture_pipeline_builds_top_twenty_without_network(
     assert summary.sent is False
     assert output.exists()
     html = output.read_text(encoding="utf-8")
-    assert "Explain like I" in html
-    assert "What probably happens next week" in html
+    assert "ELI5 / SIMPLE DECODE" in html
+    assert "PREDICTION ENGINE // WHAT HAPPENS NEXT" in html
 
 
 @pytest.mark.asyncio

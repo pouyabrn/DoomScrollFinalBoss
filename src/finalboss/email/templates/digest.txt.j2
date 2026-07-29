@@ -1,19 +1,22 @@
-{{ digest.title }}
-{{ digest.edition_date.strftime("%A, %d %B %Y") }}
+OUTPUT: DAILY AI INTELLIGENCE
+{{ digest.title|upper }}
+[INDEX] {{ edition_number }} / {{ digest.edition_date.strftime("%A, %d %B %Y") }}
+ID: {{ edition_code }} / ACCENT: {{ accent_name }}
 {{ digest.subtitle }}
 
 {% for item in digest.items %}
-{{ item.position }}. {{ item.story.title }}
-Source: {{ item.story.source_name }}
-ELI5: {{ item.editorial.eli5 }}
-Why it matters: {{ item.editorial.why_it_matters }}
-Read: {{ item.story.url }}
-{% if item.story.discussion_url %}Discussion: {{ item.story.discussion_url }}
+NODE {{ "%02d"|format(item.position) }} / SCORE {{ "%.1f"|format(item.final_score) }} / {{ item.editorial.category|upper }}
+{{ item.story.title }}
+SOURCE: {{ item.story.source_name }}
+ELI5 / SIMPLE DECODE: {{ item.editorial.eli5 }}
+WHY THIS MATTERS: {{ item.editorial.why_it_matters }}
+OPEN SOURCE: {{ item.story.url }}
+{% if item.story.discussion_url %}SOCIAL SIGNAL: {{ item.story.discussion_url }}
 {% endif %}
 {% endfor %}
-WHAT PROBABLY HAPPENS NEXT WEEK ({{ digest.forecast_confidence }} confidence)
+PREDICTION ENGINE / NEXT 7 DAYS / {{ digest.forecast_confidence|upper }} CONFIDENCE
 {% for line in digest.forecast_lines %}- {{ line }}
 {% endfor %}
 
-{{ healthy_count }} of {{ source_count }} source adapters were healthy today.
-The forecast is analysis, not a promise.
+SYSTEM: FINAL BOSS / {{ healthy_count }} OF {{ source_count }} SOURCE ADAPTERS ONLINE
+FORECAST = ANALYSIS, NOT A PROMISE / NO TRACKING PIXELS / END {{ edition_code }}

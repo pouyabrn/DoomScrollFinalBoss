@@ -162,9 +162,11 @@ material into private source customizations.
 - Ranking math: [`src/finalboss/processing/rank.py`](src/finalboss/processing/rank.py)
 - Editorial contract: [`src/finalboss/llm/editor.py`](src/finalboss/llm/editor.py)
 
-The current email is a neutral accessible wireframe. Final visual styling should be
-decided deliberately and tested in Gmail, Outlook, and Apple Mail instead of being
-treated like a normal web page.
+The email uses a black-and-warm-white editorial control-panel system: huge index
+numbers, tiny machine labels, hard rules, and one small signal color that changes
+deterministically each day. It is a 640px table layout with inline CSS and a mobile
+collapse, because an inbox is not a browser no matter how badly it wants to be one.
+Before changing the markup, test it in Gmail, Outlook, and Apple Mail.
 
 ## quality bar
 
@@ -175,7 +177,7 @@ make audit
 
 Current local gate:
 
-- 36 tests passing
+- 38 tests passing
 - 82%+ branch-aware coverage
 - Ruff clean
 - strict mypy clean

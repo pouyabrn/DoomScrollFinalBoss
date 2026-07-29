@@ -3,83 +3,167 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light dark">
-    <meta name="supported-color-schemes" content="light dark">
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light">
     <title>{{ digest.title }}</title>
     <style>
-      body { margin: 0; padding: 0; background: #f4f4f0; color: #171717; font-family: Arial, Helvetica, sans-serif; }
-      table { border-collapse: collapse; }
-      .shell { width: 100%; background: #f4f4f0; }
-      .card { width: 100%; max-width: 640px; background: #ffffff; border: 1px solid #d9d9d2; }
-      .pad { padding: 32px; }
-      .eyebrow { font-size: 12px; line-height: 18px; letter-spacing: 1.5px; text-transform: uppercase; color: #666660; }
-      .title { margin: 8px 0 10px; font-size: 34px; line-height: 38px; letter-spacing: -1px; }
-      .subtitle { margin: 0; font-size: 16px; line-height: 24px; color: #54544f; }
-      .item { border-top: 1px solid #e5e5df; }
-      .number { width: 48px; padding: 28px 0 28px 32px; vertical-align: top; font-size: 13px; color: #777770; }
-      .story { padding: 26px 32px 28px 16px; }
-      .story-title { margin: 0 0 8px; font-size: 20px; line-height: 27px; }
-      .meta { margin: 0 0 14px; font-size: 12px; line-height: 18px; color: #6a6a64; }
-      .label { margin: 14px 0 4px; font-size: 11px; line-height: 16px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
-      .copy { margin: 0; font-size: 15px; line-height: 23px; color: #292925; }
-      .link { color: #171717; text-decoration: underline; }
-      .forecast { border-top: 3px solid #171717; background: #f0f0e8; }
-      .forecast-line { margin: 7px 0; font-size: 16px; line-height: 24px; }
-      .footer { border-top: 1px solid #e5e5df; color: #70706a; font-size: 11px; line-height: 17px; }
-      @media only screen and (max-width: 680px) {
-        .pad { padding: 24px !important; }
-        .title { font-size: 29px !important; line-height: 34px !important; }
-        .number { width: 34px !important; padding-left: 20px !important; }
-        .story { padding-right: 20px !important; }
-      }
-      @media (prefers-color-scheme: dark) {
-        body, .shell { background: #111111 !important; color: #f1f1ec !important; }
-        .card { background: #191919 !important; border-color: #393935 !important; }
-        .subtitle, .meta, .footer, .eyebrow { color: #b4b4ad !important; }
-        .copy { color: #e4e4df !important; }
-        .link { color: #f1f1ec !important; }
-        .item, .footer { border-color: #393935 !important; }
-        .forecast { background: #252520 !important; border-color: #f1f1ec !important; }
+      body { margin: 0; padding: 0; background: #e9e9e4; color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; }
+      table { border-collapse: collapse; border-spacing: 0; }
+      img { border: 0; display: block; }
+      .shell { width: 100%; background: #e9e9e4; }
+      .panel { width: 100%; max-width: 640px; background: #fafaf7; border: 1px solid #0a0a0a; }
+      .mono { font-family: "Courier New", Courier, monospace; }
+      .preheader { display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent; }
+      .hero-left { width: 68%; padding: 30px 28px 28px; vertical-align: top; }
+      .hero-right { width: 32%; padding: 22px 22px 20px; vertical-align: top; border-left: 1px solid #0a0a0a; }
+      .system-line { margin: 0; font-size: 10px; line-height: 15px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+      .hero-title { margin: 11px 0 8px; font-size: 43px; line-height: 42px; font-weight: 900; letter-spacing: -2.2px; text-transform: uppercase; }
+      .subtitle { margin: 0; max-width: 390px; font-size: 14px; line-height: 20px; }
+      .index-label { margin: 0; font-size: 10px; line-height: 14px; font-weight: bold; letter-spacing: .7px; }
+      .index-number { margin: 3px 0 1px; font-size: 58px; line-height: 58px; letter-spacing: -5px; font-weight: 400; }
+      .index-meta { margin: 10px 0 0; font-size: 9px; line-height: 14px; text-transform: uppercase; }
+      .status { border-top: 1px solid #0a0a0a; border-bottom: 1px solid #0a0a0a; }
+      .status-cell { padding: 10px 12px; border-right: 1px solid #0a0a0a; vertical-align: middle; font-size: 9px; line-height: 13px; text-transform: uppercase; }
+      .status-cell-last { padding: 10px 12px; vertical-align: middle; font-size: 9px; line-height: 13px; text-transform: uppercase; }
+      .signal { width: 12px; height: 12px; border-radius: 50%; }
+      .story-row { border-bottom: 1px solid #0a0a0a; }
+      .story-index { width: 92px; padding: 27px 12px 24px 22px; vertical-align: top; border-right: 1px solid #0a0a0a; }
+      .story-number { margin: 0; font-size: 48px; line-height: 48px; letter-spacing: -4px; }
+      .story-index-meta { margin: 11px 0 0; font-size: 8px; line-height: 13px; text-transform: uppercase; }
+      .story-body { padding: 26px 28px 30px; vertical-align: top; }
+      .story-kicker { margin: 0 0 9px; font-size: 9px; line-height: 13px; font-weight: bold; letter-spacing: .8px; text-transform: uppercase; }
+      .story-title { margin: 0 0 10px; font-size: 23px; line-height: 27px; font-weight: 800; letter-spacing: -.5px; }
+      .story-meta { margin: 0 0 17px; font-size: 9px; line-height: 14px; text-transform: uppercase; }
+      .eli5 { margin: 0 0 17px; padding: 14px 15px 15px; background: #f0f0eb; border-left: 5px solid #0a0a0a; }
+      .label { margin: 0 0 5px; font-size: 9px; line-height: 13px; font-weight: bold; letter-spacing: .9px; text-transform: uppercase; }
+      .copy { margin: 0; font-size: 14px; line-height: 21px; }
+      .why { margin: 0 0 16px; }
+      .caveat { margin: 0 0 16px; padding-top: 9px; border-top: 1px dotted #73736d; font-size: 10px; line-height: 15px; }
+      .source-link { display: inline-block; padding: 9px 11px; border: 1px solid #0a0a0a; color: #0a0a0a; font-size: 9px; line-height: 12px; font-weight: bold; text-decoration: none; letter-spacing: .5px; text-transform: uppercase; }
+      .discussion-link { display: inline-block; margin-left: 5px; padding: 9px 11px; border: 1px solid #0a0a0a; color: #0a0a0a; font-size: 9px; line-height: 12px; font-weight: bold; text-decoration: none; letter-spacing: .5px; text-transform: uppercase; }
+      .forecast { background: #0a0a0a; color: #ffffff; }
+      .forecast-left { width: 31%; padding: 28px 21px; vertical-align: top; border-right: 1px solid #ffffff; }
+      .forecast-right { width: 69%; padding: 28px 28px 30px; vertical-align: top; }
+      .forecast-code { margin: 0 0 18px; font-size: 9px; line-height: 14px; text-transform: uppercase; color: #ffffff; }
+      .forecast-mark { margin: 0; font-size: 54px; line-height: 50px; font-weight: 300; color: #ffffff; }
+      .forecast-title { margin: 0 0 14px; font-size: 11px; line-height: 15px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: #ffffff; }
+      .forecast-line { margin: 0; padding: 10px 0; border-top: 1px solid #555555; font-size: 15px; line-height: 22px; color: #ffffff; }
+      .footer { padding: 22px 25px 24px; border-top: 1px solid #0a0a0a; }
+      .footer-copy { margin: 0; font-size: 9px; line-height: 14px; text-transform: uppercase; }
+      @media only screen and (max-width: 620px) {
+        .outer-pad { padding: 8px !important; }
+        .panel { width: 100% !important; }
+        .mobile-block { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+        .hero-left { padding: 23px 20px 21px !important; }
+        .hero-right { padding: 17px 20px 18px !important; border-left: 0 !important; border-top: 1px solid #0a0a0a !important; }
+        .hero-title { font-size: 35px !important; line-height: 35px !important; letter-spacing: -1.8px !important; }
+        .index-number { display: inline-block !important; margin-right: 12px !important; font-size: 48px !important; line-height: 48px !important; }
+        .index-meta { display: inline-block !important; }
+        .status-optional { display: none !important; }
+        .story-index { width: 64px !important; padding: 23px 9px 20px 13px !important; }
+        .story-number { font-size: 36px !important; line-height: 38px !important; letter-spacing: -3px !important; }
+        .story-index-meta { font-size: 7px !important; line-height: 11px !important; }
+        .story-body { padding: 22px 17px 25px !important; }
+        .story-title { font-size: 20px !important; line-height: 24px !important; }
+        .eli5 { padding: 12px 12px 13px !important; }
+        .discussion-link { margin: 6px 0 0 !important; }
+        .forecast-left { padding: 22px 18px 19px !important; border-right: 0 !important; border-bottom: 1px solid #ffffff !important; }
+        .forecast-right { padding: 22px 18px 24px !important; }
+        .forecast-mark { display: inline-block !important; margin-right: 12px !important; font-size: 42px !important; line-height: 40px !important; }
+        .forecast-code { display: inline-block !important; margin: 0 !important; }
+        .footer { padding: 19px 18px 21px !important; }
       }
     </style>
   </head>
   <body>
-    <table role="presentation" class="shell" width="100%">
+    <div class="preheader">{{ digest.subtitle }} Top {{ digest.items|length }} stories, ranked and decoded.</div>
+    <table role="presentation" class="shell" width="100%" bgcolor="#e9e9e4">
       <tr>
-        <td align="center" style="padding: 24px 12px;">
-          <table role="presentation" class="card" width="640">
+        <td class="outer-pad" align="center" style="padding: 20px 10px;">
+          <table role="presentation" class="panel" width="640" bgcolor="#fafaf7">
             <tr>
-              <td class="pad">
-                <div class="eyebrow">{{ digest.edition_date.strftime("%A, %d %B %Y") }}</div>
-                <h1 class="title">{{ digest.title }}</h1>
-                <p class="subtitle">{{ digest.subtitle }}</p>
-              </td>
+              <td height="7" bgcolor="{{ accent }}" style="height: 7px; background: {{ accent }}; font-size: 0; line-height: 0;">&nbsp;</td>
             </tr>
-            {% for item in digest.items %}
-            <tr class="item">
+            <tr>
               <td>
                 <table role="presentation" width="100%">
                   <tr>
-                    <td class="number">{{ "%02d"|format(item.position) }}</td>
-                    <td class="story">
+                    <td class="hero-left mobile-block">
+                      <p class="system-line mono">OUTPUT: DAILY AI INTELLIGENCE</p>
+                      <h1 class="hero-title">{{ digest.title }}</h1>
+                      <p class="subtitle">{{ digest.subtitle }}</p>
+                    </td>
+                    <td class="hero-right mobile-block">
+                      <p class="index-label mono">[INDEX] {{ edition_number }}</p>
+                      <p class="index-number mono">{{ edition_number }}</p>
+                      <p class="index-meta mono">
+                        {{ digest.edition_date.strftime("%d.%m.%Y") }}<br>
+                        ID: {{ edition_code }}<br>
+                        ACCENT: {{ accent_name }}<br>
+                        RESET: 24H
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr class="status">
+              <td>
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td class="status-cell mono">
+                      <table role="presentation">
+                        <tr>
+                          <td><div class="signal" style="background: {{ accent }};">&nbsp;</div></td>
+                          <td style="padding-left: 7px;">STATUS: DECODED</td>
+                        </tr>
+                      </table>
+                    </td>
+                    <td class="status-cell mono">NODES: {{ "%02d"|format(digest.items|length) }} / 20</td>
+                    <td class="status-cell status-optional mono">SOURCE ARRAY: {{ healthy_count }} / {{ source_count }}</td>
+                    <td class="status-cell-last status-optional mono">VECTOR PATH: STABLE</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {% for item in digest.items %}
+            <tr class="story-row">
+              <td>
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td class="story-index">
+                      <p class="story-number mono">{{ "%02d"|format(item.position) }}</p>
+                      <p class="story-index-meta mono">
+                        NODE<br>
+                        SCORE {{ "%05.1f"|format(item.final_score) }}<br>
+                        CONF {{ item.editorial.confidence|upper }}
+                      </p>
+                    </td>
+                    <td class="story-body">
+                      <p class="story-kicker mono">[{{ item.editorial.category }}] // PRIORITY {{ "%02d"|format(item.editorial.importance) }}</p>
                       <h2 class="story-title">{{ item.story.title }}</h2>
-                      <p class="meta">
-                        {{ item.story.source_name }} · {{ item.story.published_at.strftime("%H:%M UTC") }}
-                        · score {{ "%.1f"|format(item.final_score) }}
+                      <p class="story-meta mono">
+                        SOURCE: {{ item.story.source_name }} &nbsp;//&nbsp;
+                        {{ item.story.published_at.strftime("%H:%M UTC") }} &nbsp;//&nbsp;
+                        CLUSTER: {{ "%02d"|format(item.story.cluster_size) }}
                       </p>
-                      <p class="label">Explain like I'm 5</p>
-                      <p class="copy">{{ item.editorial.eli5 }}</p>
-                      <p class="label">Why it matters</p>
-                      <p class="copy">{{ item.editorial.why_it_matters }}</p>
+                      <div class="eli5" style="border-left-color: {{ accent }};">
+                        <p class="label mono">ELI5 / SIMPLE DECODE</p>
+                        <p class="copy">{{ item.editorial.eli5 }}</p>
+                      </div>
+                      <div class="why">
+                        <p class="label mono">WHY THIS MATTERS</p>
+                        <p class="copy">{{ item.editorial.why_it_matters }}</p>
+                      </div>
                       {% if item.editorial.uncertainty %}
-                      <p class="meta" style="margin-top: 10px;">Caveat: {{ item.editorial.uncertainty }}</p>
+                      <p class="caveat mono">ALERT / UNCERTAINTY: {{ item.editorial.uncertainty }}</p>
                       {% endif %}
-                      <p class="copy" style="margin-top: 14px;">
-                        <a class="link" href="{{ item.story.url }}">Read the source</a>
+                      <div>
+                        <a class="source-link mono" href="{{ item.story.url }}">OPEN SOURCE ↗</a>
                         {% if item.story.discussion_url %}
-                        &nbsp;·&nbsp; <a class="link" href="{{ item.story.discussion_url }}">Social discussion</a>
+                        <a class="discussion-link mono" href="{{ item.story.discussion_url }}">SOCIAL SIGNAL ↗</a>
                         {% endif %}
-                      </p>
+                      </div>
                     </td>
                   </tr>
                 </table>
@@ -87,17 +171,46 @@
             </tr>
             {% endfor %}
             <tr class="forecast">
-              <td class="pad">
-                <div class="eyebrow">What probably happens next week · {{ digest.forecast_confidence }} confidence</div>
-                {% for line in digest.forecast_lines %}
-                <p class="forecast-line">{{ line }}</p>
-                {% endfor %}
+              <td>
+                <table role="presentation" width="100%" bgcolor="#0a0a0a">
+                  <tr>
+                    <td class="forecast-left mobile-block">
+                      <p class="forecast-mark mono" style="color: {{ accent }};">＋</p>
+                      <p class="forecast-code mono">
+                        PREDICTION UNIT<br>
+                        WINDOW: 7D<br>
+                        CONF: {{ digest.forecast_confidence|upper }}
+                      </p>
+                    </td>
+                    <td class="forecast-right mobile-block">
+                      <p class="forecast-title mono">PREDICTION ENGINE // WHAT HAPPENS NEXT</p>
+                      {% for line in digest.forecast_lines %}
+                      <p class="forecast-line">{{ "%02d"|format(loop.index) }} &nbsp; {{ line }}</p>
+                      {% endfor %}
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
             <tr>
-              <td class="pad footer">
-                Ranked from {{ source_count }} configured source adapters; {{ healthy_count }} were healthy today.
-                This is a private automated briefing, and the future bit is analysis, not a promise.
+              <td class="footer">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td class="footer-copy mono">
+                      SYSTEM: FINAL BOSS &nbsp;//&nbsp; {{ healthy_count }} OF {{ source_count }} ADAPTERS ONLINE<br>
+                      FORECAST = ANALYSIS, NOT A PROMISE &nbsp;//&nbsp; NO TRACKING PIXELS &nbsp;//&nbsp; END {{ edition_code }}
+                    </td>
+                    <td align="right" valign="bottom" style="padding-left: 12px;">
+                      <table role="presentation">
+                        <tr>
+                          <td width="8" height="8" bgcolor="{{ accent }}" style="width: 8px; height: 8px; background: {{ accent }}; font-size: 0;">&nbsp;</td>
+                          <td width="8" height="8" bgcolor="#0a0a0a" style="width: 8px; height: 8px; background: #0a0a0a; font-size: 0;">&nbsp;</td>
+                          <td width="8" height="8" bgcolor="#fafaf7" style="width: 8px; height: 8px; background: #fafaf7; border: 1px solid #0a0a0a; font-size: 0;">&nbsp;</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
           </table>
