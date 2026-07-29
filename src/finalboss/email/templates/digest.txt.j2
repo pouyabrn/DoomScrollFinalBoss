@@ -1,0 +1,19 @@
+{{ digest.title }}
+{{ digest.edition_date.strftime("%A, %d %B %Y") }}
+{{ digest.subtitle }}
+
+{% for item in digest.items %}
+{{ item.position }}. {{ item.story.title }}
+Source: {{ item.story.source_name }}
+ELI5: {{ item.editorial.eli5 }}
+Why it matters: {{ item.editorial.why_it_matters }}
+Read: {{ item.story.url }}
+{% if item.story.discussion_url %}Discussion: {{ item.story.discussion_url }}
+{% endif %}
+{% endfor %}
+WHAT PROBABLY HAPPENS NEXT WEEK ({{ digest.forecast_confidence }} confidence)
+{% for line in digest.forecast_lines %}- {{ line }}
+{% endfor %}
+
+{{ healthy_count }} of {{ source_count }} source adapters were healthy today.
+The forecast is analysis, not a promise.

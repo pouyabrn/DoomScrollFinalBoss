@@ -1,0 +1,64 @@
+newsletter:
+  title: DoomScroll Final Boss
+  subtitle: The 20 AI stories worth knowing, without the infinite scroll.
+  timezone: Europe/Rome
+  locale: en
+  top_n: 20
+  lookback_hours: 40
+  max_collected_items: 500
+  max_llm_candidates: 50
+  min_story_score: 20.0
+  max_items_per_source: 4
+  max_items_per_category: 7
+
+llm:
+  # This inexpensive pinned model keeps the expected LLM spend in the cents
+  # per month range. Set model to openrouter/free for zero-cost economy mode.
+  model: openai/gpt-oss-120b
+  fallback_models:
+    - openrouter/free
+  max_output_tokens: 10000
+  temperature: 0.15
+  timeout_seconds: 90
+  max_attempts: 3
+  require_zero_data_retention: false
+  prompt_version: editorial-v1
+
+delivery:
+  provider: resend
+  subject_prefix: AI briefing
+  tracking_enabled: false
+
+network:
+  concurrency: 12
+  per_host_concurrency: 3
+  timeout_seconds: 18
+  max_response_bytes: 3000000
+  user_agent: DoomScrollFinalBoss/0.1 (+https://github.com/pouyabrn/DoomScrollFinalBoss)
+
+social:
+  reddit_subreddits:
+    - MachineLearning
+    - LocalLLaMA
+    - artificial
+    - LanguageTechnology
+    - OpenAI
+    - ClaudeAI
+    - StableDiffusion
+    - AI_Agents
+  reddit_items_per_listing: 25
+  reddit_skip_self_posts: true
+  x_accounts:
+    - OpenAI
+    - AnthropicAI
+    - GoogleDeepMind
+    - GoogleAI
+    - AIatMeta
+    - MistralAI
+    - huggingface
+    - OpenRouterAI
+    - NVIDIAAI
+    - AndrewYNg
+    - karpathy
+    - DrJimFan
+  x_max_posts_per_day: 10

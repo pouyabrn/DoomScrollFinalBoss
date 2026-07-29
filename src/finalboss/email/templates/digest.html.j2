@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>{{ digest.title }}</title>
+    <style>
+      body { margin: 0; padding: 0; background: #f4f4f0; color: #171717; font-family: Arial, Helvetica, sans-serif; }
+      table { border-collapse: collapse; }
+      .shell { width: 100%; background: #f4f4f0; }
+      .card { width: 100%; max-width: 640px; background: #ffffff; border: 1px solid #d9d9d2; }
+      .pad { padding: 32px; }
+      .eyebrow { font-size: 12px; line-height: 18px; letter-spacing: 1.5px; text-transform: uppercase; color: #666660; }
+      .title { margin: 8px 0 10px; font-size: 34px; line-height: 38px; letter-spacing: -1px; }
+      .subtitle { margin: 0; font-size: 16px; line-height: 24px; color: #54544f; }
+      .item { border-top: 1px solid #e5e5df; }
+      .number { width: 48px; padding: 28px 0 28px 32px; vertical-align: top; font-size: 13px; color: #777770; }
+      .story { padding: 26px 32px 28px 16px; }
+      .story-title { margin: 0 0 8px; font-size: 20px; line-height: 27px; }
+      .meta { margin: 0 0 14px; font-size: 12px; line-height: 18px; color: #6a6a64; }
+      .label { margin: 14px 0 4px; font-size: 11px; line-height: 16px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+      .copy { margin: 0; font-size: 15px; line-height: 23px; color: #292925; }
+      .link { color: #171717; text-decoration: underline; }
+      .forecast { border-top: 3px solid #171717; background: #f0f0e8; }
+      .forecast-line { margin: 7px 0; font-size: 16px; line-height: 24px; }
+      .footer { border-top: 1px solid #e5e5df; color: #70706a; font-size: 11px; line-height: 17px; }
+      @media only screen and (max-width: 680px) {
+        .pad { padding: 24px !important; }
+        .title { font-size: 29px !important; line-height: 34px !important; }
+        .number { width: 34px !important; padding-left: 20px !important; }
+        .story { padding-right: 20px !important; }
+      }
+      @media (prefers-color-scheme: dark) {
+        body, .shell { background: #111111 !important; color: #f1f1ec !important; }
+        .card { background: #191919 !important; border-color: #393935 !important; }
+        .subtitle, .meta, .footer, .eyebrow { color: #b4b4ad !important; }
+        .copy { color: #e4e4df !important; }
+        .link { color: #f1f1ec !important; }
+        .item, .footer { border-color: #393935 !important; }
+        .forecast { background: #252520 !important; border-color: #f1f1ec !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <table role="presentation" class="shell" width="100%">
+      <tr>
+        <td align="center" style="padding: 24px 12px;">
+          <table role="presentation" class="card" width="640">
+            <tr>
+              <td class="pad">
+                <div class="eyebrow">{{ digest.edition_date.strftime("%A, %d %B %Y") }}</div>
+                <h1 class="title">{{ digest.title }}</h1>
+                <p class="subtitle">{{ digest.subtitle }}</p>
+              </td>
+            </tr>
+            {% for item in digest.items %}
+            <tr class="item">
+              <td>
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td class="number">{{ "%02d"|format(item.position) }}</td>
+                    <td class="story">
+                      <h2 class="story-title">{{ item.story.title }}</h2>
+                      <p class="meta">
+                        {{ item.story.source_name }} · {{ item.story.published_at.strftime("%H:%M UTC") }}
+                        · score {{ "%.1f"|format(item.final_score) }}
+                      </p>
+                      <p class="label">Explain like I'm 5</p>
+                      <p class="copy">{{ item.editorial.eli5 }}</p>
+                      <p class="label">Why it matters</p>
+                      <p class="copy">{{ item.editorial.why_it_matters }}</p>
+                      {% if item.editorial.uncertainty %}
+                      <p class="meta" style="margin-top: 10px;">Caveat: {{ item.editorial.uncertainty }}</p>
+                      {% endif %}
+                      <p class="copy" style="margin-top: 14px;">
+                        <a class="link" href="{{ item.story.url }}">Read the source</a>
+                        {% if item.story.discussion_url %}
+                        &nbsp;·&nbsp; <a class="link" href="{{ item.story.discussion_url }}">Social discussion</a>
+                        {% endif %}
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {% endfor %}
+            <tr class="forecast">
+              <td class="pad">
+                <div class="eyebrow">What probably happens next week · {{ digest.forecast_confidence }} confidence</div>
+                {% for line in digest.forecast_lines %}
+                <p class="forecast-line">{{ line }}</p>
+                {% endfor %}
+              </td>
+            </tr>
+            <tr>
+              <td class="pad footer">
+                Ranked from {{ source_count }} configured source adapters; {{ healthy_count }} were healthy today.
+                This is a private automated briefing, and the future bit is analysis, not a promise.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

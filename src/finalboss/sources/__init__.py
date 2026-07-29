@@ -1,0 +1,1 @@
+"""External news source adapters."""

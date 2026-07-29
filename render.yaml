@@ -1,0 +1,35 @@
+services:
+  - type: cron
+    name: doomscroll-final-boss
+    runtime: python
+    plan: starter
+    region: frankfurt
+    schedule: "17 7 * * *"
+    buildCommand: ./scripts/render-build.sh
+    startCommand: ./scripts/render-run.sh
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: FINALBOSS_ENVIRONMENT
+        value: production
+      - key: FINALBOSS_DATABASE_URL
+        sync: false
+      - key: FINALBOSS_OPENROUTER_API_KEY
+        sync: false
+      - key: FINALBOSS_RESEND_API_KEY
+        sync: false
+      - key: FINALBOSS_EMAIL_TO
+        sync: false
+      - key: FINALBOSS_EMAIL_FROM
+        sync: false
+      - key: FINALBOSS_PRIVACY_KEY
+        sync: false
+      - key: FINALBOSS_X_BEARER_TOKEN
+        sync: false
+      - key: FINALBOSS_REDDIT_CLIENT_ID
+        sync: false
+      - key: FINALBOSS_REDDIT_CLIENT_SECRET
+        sync: false
+      - key: FINALBOSS_HEALTHCHECK_URL
+        sync: false

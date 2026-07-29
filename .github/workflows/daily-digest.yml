@@ -1,0 +1,65 @@
+name: Daily digest
+
+on:
+  schedule:
+    - cron: "17 8 * * *"
+      timezone: "Europe/Rome"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate only, or send today's digest
+        type: choice
+        options:
+          - validate
+          - send
+        default: validate
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-private-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    if: github.event_name == 'workflow_dispatch' || vars.FINALBOSS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      FINALBOSS_ENVIRONMENT: production
+      FINALBOSS_DATABASE_URL: ${{ secrets.FINALBOSS_DATABASE_URL }}
+      FINALBOSS_OPENROUTER_API_KEY: ${{ secrets.FINALBOSS_OPENROUTER_API_KEY }}
+      FINALBOSS_RESEND_API_KEY: ${{ secrets.FINALBOSS_RESEND_API_KEY }}
+      FINALBOSS_EMAIL_TO: ${{ secrets.FINALBOSS_EMAIL_TO }}
+      FINALBOSS_EMAIL_FROM: ${{ secrets.FINALBOSS_EMAIL_FROM }}
+      FINALBOSS_PRIVACY_KEY: ${{ secrets.FINALBOSS_PRIVACY_KEY }}
+      FINALBOSS_X_BEARER_TOKEN: ${{ secrets.FINALBOSS_X_BEARER_TOKEN }}
+      FINALBOSS_REDDIT_CLIENT_ID: ${{ secrets.FINALBOSS_REDDIT_CLIENT_ID }}
+      FINALBOSS_REDDIT_CLIENT_SECRET: ${{ secrets.FINALBOSS_REDDIT_CLIENT_SECRET }}
+      FINALBOSS_HEALTHCHECK_URL: ${{ secrets.FINALBOSS_HEALTHCHECK_URL }}
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Install locked runtime
+        run: |
+          python -m pip install --disable-pip-version-check uv==0.12.0
+          uv sync --frozen --no-dev
+      - name: Migrate private database
+        run: uv run finalboss migrate
+      - name: Validate production configuration
+        run: uv run finalboss doctor --strict
+      - name: Validate sources without sending
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'validate'
+        run: uv run finalboss run --dry-run --output /tmp/finalboss-preview.html
+      - name: Send one idempotent digest
+        if: github.event_name == 'schedule' || inputs.mode == 'send'
+        run: uv run finalboss run

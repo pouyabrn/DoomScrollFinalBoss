@@ -1,0 +1,294 @@
+feeds:
+  # OpenRouter gets two first-class feeds: company news and newly listed models.
+  - id: openrouter-blog
+    name: OpenRouter
+    url: https://openrouter.ai/blog/feed.xml
+    category: platforms
+    tier: primary
+    weight: 1.00
+    max_items: 20
+    terms_note: Official public RSS feed.
+  - id: openrouter-models
+    name: OpenRouter model catalog
+    url: https://openrouter.ai/api/v1/models?use_rss=true&sort=newest
+    category: models
+    tier: primary
+    weight: 1.00
+    max_items: 20
+    terms_note: Official Models API RSS representation.
+
+  # Official labs, platforms, and engineering blogs.
+  - id: openai
+    name: OpenAI
+    url: https://openai.com/news/rss.xml
+    category: labs
+    tier: primary
+    weight: 1.00
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: google-ai
+    name: Google AI
+    url: https://blog.google/innovation-and-ai/technology/ai/rss/
+    category: labs
+    tier: primary
+    weight: 0.98
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: google-deepmind
+    name: Google DeepMind
+    url: https://deepmind.google/blog/rss.xml
+    category: labs
+    tier: primary
+    weight: 1.00
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: microsoft-ai
+    name: Microsoft AI
+    url: https://news.microsoft.com/source/topics/ai/feed/
+    category: labs
+    tier: primary
+    weight: 0.96
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: aws-ml
+    name: AWS Machine Learning
+    url: https://aws.amazon.com/blogs/machine-learning/feed/
+    category: engineering
+    tier: primary
+    weight: 0.92
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: nvidia-generative-ai
+    name: NVIDIA Generative AI
+    url: https://blogs.nvidia.com/blog/category/generative-ai/feed/
+    category: hardware
+    tier: primary
+    weight: 0.96
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: hugging-face
+    name: Hugging Face
+    url: https://huggingface.co/blog/feed.xml
+    category: open-source
+    tier: primary
+    weight: 0.98
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: github-ai
+    name: GitHub AI and ML
+    url: https://github.blog/ai-and-ml/feed/
+    category: coding
+    tier: primary
+    weight: 0.93
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: cloudflare-ai
+    name: Cloudflare AI
+    url: https://blog.cloudflare.com/tag/ai/rss/
+    category: infrastructure
+    tier: primary
+    weight: 0.92
+    max_items: 15
+    terms_note: Official public RSS feed.
+  - id: mozilla-ai
+    name: Mozilla AI
+    url: https://blog.mozilla.ai/rss/
+    category: open-source
+    tier: primary
+    weight: 0.90
+    max_items: 15
+    terms_note: Official public RSS feed.
+
+  # Research feeds are deliberately bounded so papers cannot flood the digest.
+  - id: arxiv-ai
+    name: arXiv cs.AI
+    url: https://export.arxiv.org/rss/cs.AI
+    category: research
+    tier: research
+    weight: 0.86
+    max_items: 12
+    terms_note: Official arXiv RSS feed.
+  - id: arxiv-cl
+    name: arXiv cs.CL
+    url: https://export.arxiv.org/rss/cs.CL
+    category: research
+    tier: research
+    weight: 0.88
+    max_items: 12
+    terms_note: Official arXiv RSS feed.
+  - id: arxiv-lg
+    name: arXiv cs.LG
+    url: https://export.arxiv.org/rss/cs.LG
+    category: research
+    tier: research
+    weight: 0.86
+    max_items: 12
+    terms_note: Official arXiv RSS feed.
+
+  # Newsletters and independent expert commentary with public feeds.
+  - id: import-ai
+    name: Import AI
+    url: https://jack-clark.net/feed/
+    category: newsletters
+    tier: expert
+    weight: 0.95
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: interconnects
+    name: Interconnects
+    url: https://www.interconnects.ai/feed
+    category: newsletters
+    tier: expert
+    weight: 0.95
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: latent-space
+    name: Latent Space
+    url: https://www.latent.space/feed
+    category: newsletters
+    tier: expert
+    weight: 0.93
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: one-useful-thing
+    name: One Useful Thing
+    url: https://www.oneusefulthing.org/feed
+    category: newsletters
+    tier: expert
+    weight: 0.91
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: normal-technology
+    name: Normal Technology
+    url: https://www.normaltech.ai/feed
+    category: newsletters
+    tier: expert
+    weight: 0.94
+    max_items: 10
+    terms_note: Publisher-provided public feed; formerly AI Snake Oil.
+  - id: ahead-of-ai
+    name: Ahead of AI
+    url: https://magazine.sebastianraschka.com/feed
+    category: newsletters
+    tier: expert
+    weight: 0.93
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: semianalysis
+    name: SemiAnalysis
+    url: https://semianalysis.com/feed/
+    category: newsletters
+    tier: expert
+    weight: 0.94
+    max_items: 10
+    terms_note: Publisher-provided public feed; do not bypass paywalls.
+  - id: last-week-in-ai
+    name: Last Week in AI
+    url: https://lastweekin.ai/feed
+    category: newsletters
+    tier: expert
+    weight: 0.89
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: the-gradient
+    name: The Gradient
+    url: https://thegradient.pub/rss/
+    category: research
+    tier: expert
+    weight: 0.91
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: algorithmic-bridge
+    name: The Algorithmic Bridge
+    url: https://www.thealgorithmicbridge.com/feed
+    category: newsletters
+    tier: expert
+    weight: 0.87
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: bens-bites
+    name: Ben's Bites
+    url: https://www.bensbites.com/feed
+    category: newsletters
+    tier: expert
+    weight: 0.85
+    max_items: 10
+    terms_note: Publisher-provided public feed.
+  - id: simon-willison
+    name: Simon Willison
+    url: https://simonwillison.net/atom/everything/
+    category: engineering
+    tier: expert
+    weight: 0.95
+    max_items: 12
+    terms_note: Publisher-provided public Atom feed.
+
+  # Press is useful for corroboration but carries less authority than originals.
+  - id: techcrunch-ai
+    name: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    category: press
+    tier: press
+    weight: 0.76
+    max_items: 15
+    terms_note: Publisher-provided public feed.
+  - id: venturebeat-ai
+    name: VentureBeat AI
+    url: https://venturebeat.com/category/ai/feed/
+    category: press
+    tier: press
+    weight: 0.72
+    max_items: 15
+    terms_note: Publisher-provided public feed.
+  - id: marktechpost
+    name: MarkTechPost
+    url: https://www.marktechpost.com/feed/
+    category: press
+    tier: press
+    weight: 0.60
+    max_items: 12
+    terms_note: Publisher-provided public feed; verify against primary sources.
+
+sitemaps:
+  # These official publishers do not expose a reliable RSS feed. We read only
+  # their public sitemap metadata and never scrape page bodies.
+  - id: anthropic
+    name: Anthropic
+    url: https://www.anthropic.com/sitemap.xml
+    include_pattern: /(?:news|research)/
+    category: labs
+    tier: primary
+    weight: 1.00
+    max_items: 12
+    max_child_sitemaps: 8
+    terms_note: Official public sitemap metadata only; no page-body extraction.
+  - id: mistral
+    name: Mistral AI
+    url: https://mistral.ai/sitemap-index.xml
+    include_pattern: /news/
+    category: labs
+    tier: primary
+    weight: 0.98
+    max_items: 12
+    max_child_sitemaps: 8
+    terms_note: Official public sitemap metadata only; no page-body extraction.
+  - id: cohere
+    name: Cohere
+    url: https://cohere.com/sitemap.xml
+    include_pattern: /(?:blog|research)/
+    category: labs
+    tier: primary
+    weight: 0.94
+    max_items: 12
+    max_child_sitemaps: 8
+    terms_note: Official public sitemap metadata only; no page-body extraction.
+  - id: stability-ai
+    name: Stability AI
+    url: https://stability.ai/sitemap.xml
+    include_pattern: /news/
+    category: labs
+    tier: primary
+    weight: 0.92
+    max_items: 12
+    max_child_sitemaps: 8
+    terms_note: Official public sitemap metadata only; no page-body extraction.
