@@ -76,15 +76,15 @@ def final_select(
 ) -> list[tuple[Story, EditorialItem, float]]:
     candidate_by_id = {story.id: story for story in candidates}
     editorial_by_id = {item.item_id: item for item in editorial if item.item_id in candidate_by_id}
-    scored: list[tuple[Story, EditorialItem, float]] = []
+    all_scored: list[tuple[Story, EditorialItem, float]] = []
     for story in candidates:
         item = editorial_by_id.get(story.id)
         if item is None:
             continue
         final_score = round((0.58 * item.importance) + (0.42 * story.deterministic_score), 3)
-        if final_score >= config.min_story_score:
-            scored.append((story, item, final_score))
-    scored.sort(key=lambda row: (-row[2], row[0].id))
+        all_scored.append((story, item, final_score))
+    all_scored.sort(key=lambda row: (-row[2], row[0].id))
+    scored = [row for row in all_scored if row[2] >= config.min_story_score]
 
     selected: list[tuple[Story, EditorialItem, float]] = []
     sources: Counter[str] = Counter()
@@ -124,6 +124,20 @@ def final_select(
     # Source caps are also soft. If the editorial model returned exactly N credible
     # items, preserve the requested briefing size instead of silently dropping some.
     for row in scored:
+        story, _, _ = row
+        if story.id in selected_ids:
+            continue
+        selected.append(row)
+        selected_ids.add(story.id)
+        if len(selected) >= config.top_n:
+            break
+    if len(selected) >= config.top_n:
+        return selected
+
+    # The score floor is a ranking preference. Every row here is still a real,
+    # grounded candidate selected or backed by editorial data. Fill the requested
+    # briefing size from the strongest remaining rows instead of silently shrinking it.
+    for row in all_scored:
         story, _, _ = row
         if story.id in selected_ids:
             continue

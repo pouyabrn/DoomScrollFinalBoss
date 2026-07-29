@@ -71,3 +71,33 @@ def test_final_selection_prefers_source_diversity(make_story: Callable[..., Stor
     )
     selected = final_select(stories, editorial, config)
     assert len(selected) == 2
+
+
+def test_final_selection_fills_requested_count_below_score_preference(
+    make_story: Callable[..., Story],
+) -> None:
+    stories = [
+        make_story(index).model_copy(update={"deterministic_score": 1.0}) for index in range(1, 4)
+    ]
+    editorial = [
+        EditorialItem(
+            item_id=story.id,
+            importance=1,
+            eli5="A real source published a small but grounded artificial intelligence update.",
+            why_it_matters="It completes the requested ranked briefing without inventing a story.",
+            category="models",
+            confidence="low",
+            uncertainty="This item ranked below the preferred score floor.",
+        )
+        for story in stories
+    ]
+    config = NewsletterConfig(
+        title="Test",
+        subtitle="Test subtitle",
+        timezone="UTC",
+        top_n=2,
+        min_story_score=99,
+    )
+    selected = final_select(stories, editorial, config)
+    assert len(selected) == 2
+    assert all(row[2] < config.min_story_score for row in selected)
