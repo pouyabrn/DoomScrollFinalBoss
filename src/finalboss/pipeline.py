@@ -35,6 +35,7 @@ from finalboss.models import (
     Story,
 )
 from finalboss.processing.dedupe import cluster_stories
+from finalboss.processing.linkedin import build_linkedin_opportunity
 from finalboss.processing.normalize import fingerprint
 from finalboss.processing.rank import deterministic_rank, final_select
 from finalboss.sources.base import SourceAdapter
@@ -199,6 +200,10 @@ class DigestPipeline:
                     ],
                     forecast_lines=editorial.forecast_lines,
                     forecast_confidence=editorial.forecast_confidence,
+                    linkedin_opportunity=build_linkedin_opportunity(
+                        editorial.linkedin_draft,
+                        selected,
+                    ),
                     source_statuses=collection.statuses,
                     model=model_used,
                     prompt_version=self._config.llm.prompt_version,

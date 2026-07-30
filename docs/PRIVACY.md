@@ -48,6 +48,9 @@ matches your needs.
   persisted.
 - X: official Recent Search only; external article links and aggregate metrics are
   ephemeral corroboration; no post body persisted.
+- LinkedIn: no collection or scraping. The post opportunity is generated from the
+  day's verified publisher stories. No profile, connection, audience, or post-analytics
+  data is requested or stored.
 
 Deleting a social record is therefore normally satisfied when the daily process exits.
 

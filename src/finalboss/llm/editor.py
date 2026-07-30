@@ -6,7 +6,8 @@ from typing import Any
 
 from finalboss.config import LlmConfig
 from finalboss.http import BoundedHttpClient
-from finalboss.models import EditorialItem, EditorialResult, Story
+from finalboss.models import EditorialItem, EditorialResult, LinkedInDraft, Story
+from finalboss.processing.linkedin import deterministic_linkedin_draft
 
 _SYSTEM_PROMPT = """\
 You are the careful editor of a private daily AI-news briefing.
@@ -29,6 +30,12 @@ Editorial rules:
 - Select exactly the requested count, ordered from most important to least important.
 - The forecast is explicitly a cautious prediction for the next seven days, in 2-3 short lines,
   grounded in selected item IDs. Do not claim certainty.
+- Create one LinkedIn post opportunity for the next 24 hours from the strongest selected news.
+- The first post line is the hook. Write 4-7 short, ready-to-post paragraphs with one useful
+  professional takeaway and a natural closing question. Do not invent personal experience,
+  audience data, engagement, quotes, statistics, or LinkedIn trends.
+- The LinkedIn topic, post, and why-now explanation must be supported by 1-3 selected item IDs.
+  Do not claim that LinkedIn was scanned. The application computes all displayed scores.
 """
 
 
@@ -54,6 +61,27 @@ def _response_schema(max_items: int) -> dict[str, Any]:
             "confidence",
             "uncertainty",
         ],
+    }
+    linkedin_draft = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "topic": {"type": "string", "minLength": 10, "maxLength": 160},
+            "post_lines": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 7,
+                "items": {"type": "string", "minLength": 10, "maxLength": 420},
+            },
+            "why_now": {"type": "string", "minLength": 10, "maxLength": 300},
+            "evidence_item_ids": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {"type": "string"},
+            },
+        },
+        "required": ["topic", "post_lines", "why_now", "evidence_item_ids"],
     }
     return {
         "type": "object",
@@ -81,12 +109,14 @@ def _response_schema(max_items: int) -> dict[str, Any]:
                 "maxItems": 8,
                 "items": {"type": "string"},
             },
+            "linkedin_draft": linkedin_draft,
         },
         "required": [
             "items",
             "forecast_lines",
             "forecast_confidence",
             "evidence_item_ids",
+            "linkedin_draft",
         ],
     }
 
@@ -126,6 +156,7 @@ class OpenRouterEditor:
             {
                 "task": f"Select and edit exactly {min(top_n, len(candidates))} stories.",
                 "forecast_horizon": "the next seven days",
+                "linkedin_opportunity_horizon": "the next 24 hours",
                 "candidates": records,
             },
             ensure_ascii=True,
@@ -208,6 +239,8 @@ class OpenRouterEditor:
             raise ValueError("editorial output contains unknown item IDs")
         if not set(result.evidence_item_ids).issubset(set(item_ids)):
             raise ValueError("forecast evidence must reference selected item IDs")
+        if not set(result.linkedin_draft.evidence_item_ids).issubset(set(item_ids)):
+            raise ValueError("LinkedIn evidence must reference selected item IDs")
 
 
 def deterministic_editorial(candidates: Sequence[Story], *, top_n: int) -> EditorialResult:
@@ -217,6 +250,21 @@ def deterministic_editorial(candidates: Sequence[Story], *, top_n: int) -> Edito
     )
     evidence = [item.item_id for item in items[:3]]
     category = items[0].category if items else "AI"
+    linkedin_draft = (
+        deterministic_linkedin_draft(candidates[0], items[0])
+        if candidates and items
+        else LinkedInDraft(
+            topic="No grounded LinkedIn topic is available today",
+            post_lines=[
+                "There is no grounded AI post recommendation in today's source set.",
+                "A useful post needs evidence, not a made-up trend or engagement claim.",
+                "I would wait for a credible source before publishing a strong take.",
+                "What evidence would change that decision?",
+            ],
+            why_now="The deterministic fallback refuses to invent a topical recommendation.",
+            evidence_item_ids=["no-evidence"],
+        )
+    )
     return EditorialResult(
         items=items,
         forecast_lines=[
@@ -225,6 +273,7 @@ def deterministic_editorial(candidates: Sequence[Story], *, top_n: int) -> Edito
         ],
         forecast_confidence="low",
         evidence_item_ids=evidence or ["no-evidence"],
+        linkedin_draft=linkedin_draft,
     )
 
 

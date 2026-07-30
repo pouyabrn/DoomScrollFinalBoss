@@ -8,7 +8,8 @@ public repo without putting the private list in Git. It reads a curated set of o
 feeds, research feeds, expert newsletters, OpenRouter, approved Reddit, and the
 official X API. It clusters duplicate stories, ranks what actually matters, writes an
 ELI5 explanation for each pick, sends at most 20, then ends with a cautious 2–3 line
-read on what might happen in AI next week.
+read on what might happen in AI next week and one ready-to-post LinkedIn opportunity
+for the next 24 hours.
 
 The initial architecture and implementation pass was built with Codex SOL 5.6. The
 repo is aggressively tested because “the model will probably return valid JSON” is how
@@ -27,6 +28,10 @@ pretend otherwise.
   stored, copied into email, or sent to the LLM.
 - The actual reading list comes mostly from publisher-provided RSS/Atom, public sitemap
   metadata, OpenRouter’s official feeds, and linked primary sources.
+- LinkedIn does not expose a normal API for searching arbitrary public posts. This app
+  does not scrape it or fake a trend scan. The final email section turns the day's
+  strongest verified news into a post draft and says exactly what its signal is based
+  on.
 
 “Every AI newsletter” here means an extensible, reviewed source registry, not random
 internet scraping. The starter registry has 34 publisher/discovery sources plus two
@@ -46,7 +51,7 @@ Add or remove them in
                                       |
                      one strict-schema LLM edit pass
                                       |
-                diversity-aware top 20 + ELI5 + forecast
+          top 20 + ELI5 + forecast + LinkedIn post opportunity
                                       |
                   HTML and text email through Resend
                                       |
@@ -55,6 +60,10 @@ Add or remove them in
 
 The model never gets to make up a link. It returns existing item IDs and bounded prose;
 the app owns titles, URLs, timestamps, attribution, ordering math, and send state.
+The final section has an Impression Potential score and a separate Model Confidence
+score. Both use transparent application math; confidence is capped at 65/100 until
+first-party LinkedIn analytics are available, because a prediction without audience
+history should look uncertain.
 
 ## expected monthly cost
 
@@ -234,6 +243,7 @@ material into private source customizations.
 - Plain text: [`src/finalboss/email/templates/digest.txt.j2`](src/finalboss/email/templates/digest.txt.j2)
 - Ranking math: [`src/finalboss/processing/rank.py`](src/finalboss/processing/rank.py)
 - Editorial contract: [`src/finalboss/llm/editor.py`](src/finalboss/llm/editor.py)
+- LinkedIn scoring: [`src/finalboss/processing/linkedin.py`](src/finalboss/processing/linkedin.py)
 
 The email uses a black-and-warm-white editorial control-panel system: huge index
 numbers, tiny machine labels, hard rules, and one small signal color that changes
@@ -250,8 +260,8 @@ make audit
 
 Current local gate:
 
-- 47 tests passing
-- 83%+ branch-aware coverage
+- 61 tests passing
+- 84%+ branch-aware coverage
 - Ruff clean
 - strict mypy clean
 - Bandit and `pip-audit` in CI

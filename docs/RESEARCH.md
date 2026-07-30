@@ -64,6 +64,27 @@ metadata. It does not fetch page bodies.
 Meta AI is intentionally not scraped; its robots policy prohibits automated
 collection without permission.
 
+### LinkedIn post discovery and analytics
+
+LinkedIn's self-serve Share on LinkedIn product supports publishing for an
+authenticated member with `w_member_social`; it does not provide arbitrary public-post
+search. Community Management access is a vetted product aimed primarily at managed
+organization/member activity. LinkedIn's current access documentation says
+`r_member_social` is closed and new access requests are not being accepted.
+First-party post analytics permissions exist through approved Community Management
+access, but they do not turn the API into a general public trend scanner.
+
+- [Share on LinkedIn](https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin)
+- [Community Management API overview](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/community-management-overview?view=li-lms-2026-03)
+- [Increasing access and closed member-read permission](https://learn.microsoft.com/en-us/linkedin/marketing/increasing-access?view=li-lms-2026-05)
+- [Posts API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api?view=li-lms-2026-04)
+- [Community Management app review](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review?view=li-lms-2026-01)
+
+Decision: no LinkedIn scraping and no claim of a public-post scan. The daily email
+derives one post opportunity from its already verified news set, grounds it in final
+item IDs, computes conservative scores in application code, and discloses the signal
+basis. Approved first-party analytics can be added later as private calibration input.
+
 ## LLM/editorial
 
 OpenRouter supports strict JSON Schema through `response_format`. Its guidance says to

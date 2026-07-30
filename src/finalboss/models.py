@@ -151,6 +151,39 @@ class EditorialItem(BaseModel):
         return " ".join(value.split())
 
 
+class LinkedInDraft(BaseModel):
+    """Bounded, grounded prose returned by the editorial model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str = Field(min_length=10, max_length=160)
+    post_lines: list[str] = Field(min_length=4, max_length=7)
+    why_now: str = Field(min_length=10, max_length=300)
+    evidence_item_ids: list[str] = Field(min_length=1, max_length=3)
+
+    @field_validator("topic", "why_now")
+    @classmethod
+    def one_line(cls, value: str) -> str:
+        return " ".join(value.split())
+
+    @field_validator("post_lines")
+    @classmethod
+    def compact_post(cls, value: list[str]) -> list[str]:
+        normalized = [" ".join(line.split()) for line in value]
+        if any(len(line) < 10 or len(line) > 420 for line in normalized):
+            raise ValueError("LinkedIn post lines must each contain 10-420 characters")
+        if sum(len(line) for line in normalized) > 1800:
+            raise ValueError("LinkedIn post must not exceed 1,800 characters")
+        return normalized
+
+    @field_validator("evidence_item_ids")
+    @classmethod
+    def unique_evidence(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("LinkedIn evidence item IDs must be unique")
+        return value
+
+
 class EditorialResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -158,6 +191,7 @@ class EditorialResult(BaseModel):
     forecast_lines: list[str] = Field(min_length=2, max_length=3)
     forecast_confidence: Literal["low", "medium", "high"]
     evidence_item_ids: list[str] = Field(min_length=1, max_length=8)
+    linkedin_draft: LinkedInDraft
 
     @field_validator("forecast_lines")
     @classmethod
@@ -177,6 +211,20 @@ class DigestItem(BaseModel):
     final_score: float = Field(ge=0.0, le=100.0)
 
 
+class LinkedInOpportunity(BaseModel):
+    """Rendered recommendation with application-computed, bounded scores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str = Field(min_length=10, max_length=160)
+    post_lines: list[str] = Field(min_length=4, max_length=7)
+    why_now: str = Field(min_length=10, max_length=300)
+    impression_potential: int = Field(ge=0, le=90)
+    model_confidence: int = Field(ge=0, le=65)
+    evidence_item_ids: list[str] = Field(min_length=1, max_length=3)
+    signal_basis: Literal["daily-news-only"] = "daily-news-only"
+
+
 class Digest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -187,6 +235,7 @@ class Digest(BaseModel):
     items: list[DigestItem] = Field(max_length=20)
     forecast_lines: list[str] = Field(min_length=2, max_length=3)
     forecast_confidence: Literal["low", "medium", "high"]
+    linkedin_opportunity: LinkedInOpportunity
     source_statuses: list[SourceStatus]
     model: str
     prompt_version: str
