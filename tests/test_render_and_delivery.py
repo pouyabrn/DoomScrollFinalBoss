@@ -102,6 +102,30 @@ def test_renderer_escapes_linkedin_model_text(make_story: Callable[..., Story]) 
     assert "READY-TO-POST" not in rendered.html
 
 
+def test_linkedin_topic_hierarchy_is_topic_reason_then_scores(
+    make_story: Callable[..., Story],
+) -> None:
+    rendered = DigestRenderer().render(_digest(make_story()), subject_prefix="Daily")
+
+    topic_position = rendered.text.index(
+        "A reasoning release changes the practical deployment question"
+    )
+    reason_label_position = rendered.text.index("WHY THIS TOPIC")
+    reason_position = rendered.text.index(
+        "The release is fresh, technically relevant, and grounded in a primary source."
+    )
+    impression_position = rendered.text.index("IMPRESSION POTENTIAL")
+    confidence_position = rendered.text.index("MODEL CONFIDENCE")
+
+    assert (
+        topic_position
+        < reason_label_position
+        < reason_position
+        < impression_position
+        < confidence_position
+    )
+
+
 def test_renderer_plain_text_snapshot(make_story: Callable[..., Story]) -> None:
     rendered = DigestRenderer().render(_digest(make_story()), subject_prefix="Daily")
     snapshot = Path("tests/snapshots/digest.txt").read_text(encoding="utf-8").strip()
