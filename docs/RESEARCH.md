@@ -81,7 +81,7 @@ access, but they do not turn the API into a general public trend scanner.
 - [Community Management app review](https://learn.microsoft.com/en-us/linkedin/marketing/community-management-app-review?view=li-lms-2026-01)
 
 Decision: no LinkedIn scraping and no claim of a public-post scan. The daily email
-derives one post opportunity from its already verified news set, grounds it in final
+derives one topic opportunity from its already verified news set, grounds it in final
 item IDs, computes conservative scores in application code, and discloses the signal
 basis. Approved first-party analytics can be added later as private calibration input.
 
@@ -99,8 +99,8 @@ variable; OpenRouter itself says they are generally not a production guarantee.
 - [Zero-data-retention routing](https://openrouter.ai/docs/guides/features/zdr)
 
 The live pricing snapshot for `openai/gpt-oss-120b` was $0.037/M input and $0.17/M
-output. An estimated 63k input and 8.5k output tokens/day across the main editorial
-batch and a small final-story LinkedIn pass remains about $0.11/month. Both calls use
+output. An estimated 63k input and 8.2k output tokens/day across the main editorial
+batch and a small final-story LinkedIn topic pass remains about $0.11/month. Both calls use
 strict schemas and deterministic outage fallbacks. The deployment owner should enforce
 a $0.25 key limit.
 

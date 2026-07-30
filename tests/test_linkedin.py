@@ -1,10 +1,10 @@
 from collections.abc import Callable
 from typing import Literal
 
-from finalboss.models import EditorialItem, LinkedInDraft, Story
+from finalboss.models import EditorialItem, LinkedInTopic, Story
 from finalboss.processing.linkedin import (
     build_linkedin_opportunity,
-    deterministic_linkedin_draft,
+    deterministic_linkedin_topic,
 )
 
 
@@ -28,20 +28,13 @@ def test_linkedin_scores_are_bounded_and_application_computed(
 ) -> None:
     first = make_story(1).model_copy(update={"deterministic_score": 95.0, "cluster_size": 4})
     second = make_story(2).model_copy(update={"deterministic_score": 90.0, "cluster_size": 3})
-    draft = LinkedInDraft(
+    topic = LinkedInTopic(
         topic="Cheaper reasoning changes which AI workflows are practical",
-        post_lines=[
-            "Cheaper reasoning changes which AI workflows are practical.",
-            "Two primary releases point to better capability at a lower operating cost.",
-            "That makes previously expensive experiments more realistic for smaller teams.",
-            "I would still benchmark one real workflow before changing a roadmap.",
-            "Which task would you test first?",
-        ],
         why_now="Multiple strong, current sources support a useful professional discussion.",
         evidence_item_ids=[first.id, second.id],
     )
     opportunity = build_linkedin_opportunity(
-        draft,
+        topic,
         [
             (first, _editorial(first), 95.0),
             (second, _editorial(second), 90.0),
@@ -54,47 +47,34 @@ def test_linkedin_scores_are_bounded_and_application_computed(
     assert opportunity.evidence_item_ids == [first.id, second.id]
 
 
-def test_linkedin_draft_falls_back_when_evidence_is_not_in_final_digest(
+def test_linkedin_topic_falls_back_when_evidence_is_not_in_final_digest(
     make_story: Callable[..., Story],
 ) -> None:
     selected = make_story(1).model_copy(update={"deterministic_score": 80.0})
     omitted = make_story(2)
-    draft = LinkedInDraft(
+    topic = LinkedInTopic(
         topic="A topic supported only by an omitted story",
-        post_lines=[
-            "This hook refers to a story that was omitted from the final digest.",
-            "The model could have written more unsupported details in this paragraph.",
-            "Those details must not survive when their evidence is unavailable.",
-            "The application should replace this entire draft with grounded text.",
-        ],
         why_now="This explanation references unavailable evidence and must be replaced.",
         evidence_item_ids=[omitted.id],
     )
 
     opportunity = build_linkedin_opportunity(
-        draft,
+        topic,
         [(selected, _editorial(selected, confidence="low"), 80.0)],
     )
 
     assert opportunity.evidence_item_ids == [selected.id]
-    assert omitted.title not in " ".join(opportunity.post_lines)
-    assert "test first" in opportunity.post_lines[-1].casefold()
+    assert opportunity.topic == selected.title
+    assert "strongest grounded story" in opportunity.why_now
 
 
-def test_deterministic_linkedin_draft_uses_complete_grounded_sentence(
+def test_deterministic_linkedin_topic_is_grounded(
     make_story: Callable[..., Story],
 ) -> None:
-    story = make_story(
-        excerpt=(
-            "arXiv:2607.12345v1 Announce Type: new Abstract: "
-            "The study tests whether a documented alignment method transfers across settings. "
-            "This second sentence is intentionally very long " + ("evidence " * 100)
-        )
-    )
+    story = make_story()
 
-    draft = deterministic_linkedin_draft(story, _editorial(story))
+    topic = deterministic_linkedin_topic(story, _editorial(story))
 
-    assert draft.post_lines[1] == (
-        "The study tests whether a documented alignment method transfers across settings."
-    )
-    assert "Announce Type" not in draft.post_lines[1]
+    assert topic.topic == story.title
+    assert _editorial(story).why_it_matters in topic.why_now
+    assert topic.evidence_item_ids == [story.id]

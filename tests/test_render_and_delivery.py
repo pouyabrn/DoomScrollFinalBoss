@@ -49,13 +49,6 @@ def _digest(story: Story) -> Digest:
         forecast_confidence="medium",
         linkedin_opportunity=LinkedInOpportunity(
             topic="A reasoning release changes the practical deployment question",
-            post_lines=[
-                "A better model is interesting. A better model at lower cost is operational.",
-                "This release says difficult reasoning tasks can run with a smaller budget.",
-                "The important question is whether that holds up in a real team workflow.",
-                "I would test one expensive task before changing a production roadmap.",
-                "What would you benchmark first?",
-            ],
             why_now="The release is fresh, technically relevant, and grounded in a primary source.",
             impression_potential=82,
             model_confidence=47,
@@ -77,10 +70,13 @@ def test_renderer_escapes_untrusted_content(make_story: Callable[..., Story]) ->
     assert "onerror" not in rendered.html
     assert "Important release" in rendered.html
     assert "PREDICTION ENGINE / NEXT 7 DAYS" in rendered.text
-    assert "LINKEDIN POST OPPORTUNITY / NEXT 24 HOURS" in rendered.text
+    assert "LINKEDIN TOPIC OPPORTUNITY / NEXT 24 HOURS" in rendered.text
     assert rendered.text.index("PREDICTION ENGINE") < rendered.text.index(
-        "LINKEDIN POST OPPORTUNITY"
+        "LINKEDIN TOPIC OPPORTUNITY"
     )
+    assert '<h2 class="linkedin-title"' in rendered.html
+    assert "WHY THIS TOPIC" in rendered.html
+    assert "READY-TO-POST" not in rendered.text
     assert "@media only screen and (max-width: 620px)" in rendered.html
     assert "https://example1.com/news/model-launch-1" in rendered.html
     assert "fonts.googleapis.com" not in rendered.html
@@ -92,13 +88,7 @@ def test_renderer_escapes_linkedin_model_text(make_story: Callable[..., Story]) 
     hostile = digest.linkedin_opportunity.model_copy(
         update={
             "topic": '<img src=x onerror="alert(1)"> A grounded topic',
-            "post_lines": [
-                '<script>alert("x")</script> A practical release question starts here.',
-                "The source describes a documented change to model capability and cost.",
-                "The useful test is whether the claim holds in a real professional workflow.",
-                "I would compare it with the current baseline before changing a roadmap.",
-                "What would you test first?",
-            ],
+            "why_now": '<script>alert("x")</script> This topic is grounded in a primary source.',
         }
     )
     rendered = DigestRenderer().render(
@@ -108,6 +98,8 @@ def test_renderer_escapes_linkedin_model_text(make_story: Callable[..., Story]) 
     assert "<script>" not in rendered.html
     assert "onerror" not in rendered.html
     assert "A grounded topic" in rendered.html
+    assert "This topic is grounded" in rendered.html
+    assert "READY-TO-POST" not in rendered.html
 
 
 def test_renderer_plain_text_snapshot(make_story: Callable[..., Story]) -> None:

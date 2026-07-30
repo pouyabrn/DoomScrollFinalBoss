@@ -29,7 +29,7 @@ from finalboss.models import (
     DigestItem,
     EditorialItem,
     EditorialResult,
-    LinkedInDraft,
+    LinkedInTopic,
     RenderedDigest,
     RunSummary,
     SourceKind,
@@ -40,7 +40,7 @@ from finalboss.models import (
 from finalboss.processing.dedupe import cluster_stories
 from finalboss.processing.linkedin import (
     build_linkedin_opportunity,
-    deterministic_linkedin_draft,
+    deterministic_linkedin_topic,
 )
 from finalboss.processing.normalize import fingerprint
 from finalboss.processing.rank import deterministic_rank, final_select
@@ -189,7 +189,7 @@ class DigestPipeline:
                 selected = final_select(candidates, editorial.items, self._config.newsletter)
                 if not selected:
                     raise RuntimeError("no stories passed the editorial threshold")
-                linkedin_draft, linkedin_model_used = await self._edit_linkedin(
+                linkedin_topic, linkedin_model_used = await self._edit_linkedin(
                     selected,
                     client=client,
                 )
@@ -211,7 +211,7 @@ class DigestPipeline:
                     forecast_lines=editorial.forecast_lines,
                     forecast_confidence=editorial.forecast_confidence,
                     linkedin_opportunity=build_linkedin_opportunity(
-                        linkedin_draft,
+                        linkedin_topic,
                         selected,
                     ),
                     source_statuses=collection.statuses,
@@ -349,7 +349,7 @@ class DigestPipeline:
         selected: list[tuple[Story, EditorialItem, float]],
         *,
         client: BoundedHttpClient,
-    ) -> tuple[LinkedInDraft, str]:
+    ) -> tuple[LinkedInTopic, str]:
         api_key = secret_value(self._settings.openrouter_api_key)
         if api_key:
             try:
@@ -365,7 +365,7 @@ class DigestPipeline:
                     extra={"error_category": type(exc).__name__},
                 )
         story, editorial, _ = selected[0]
-        return deterministic_linkedin_draft(story, editorial), "deterministic-fallback"
+        return deterministic_linkedin_topic(story, editorial), "deterministic-fallback"
 
     def _delivery_identities(self, *, required: bool) -> tuple[DeliveryIdentity, ...]:
         recipients = parse_recipient_emails(self._settings.email_to)

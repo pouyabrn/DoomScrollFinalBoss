@@ -85,10 +85,6 @@ def _sanitize_for_html_parser(digest: Digest) -> Digest:
             "linkedin_opportunity": digest.linkedin_opportunity.model_copy(
                 update={
                     "topic": clean_text(digest.linkedin_opportunity.topic, limit=160),
-                    "post_lines": [
-                        clean_text(line, limit=420)
-                        for line in digest.linkedin_opportunity.post_lines
-                    ],
                     "why_now": clean_text(digest.linkedin_opportunity.why_now, limit=300),
                 }
             ),

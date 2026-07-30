@@ -18,16 +18,13 @@ PREDICTION ENGINE / NEXT 7 DAYS / {{ digest.forecast_confidence|upper }} CONFIDE
 {% for line in digest.forecast_lines %}- {{ line }}
 {% endfor %}
 
-LINKEDIN POST OPPORTUNITY / NEXT 24 HOURS
+LINKEDIN TOPIC OPPORTUNITY / NEXT 24 HOURS
 TOPIC: {{ digest.linkedin_opportunity.topic }}
+WHY THIS TOPIC: {{ digest.linkedin_opportunity.why_now }}
 IMPRESSION POTENTIAL: {{ digest.linkedin_opportunity.impression_potential }}/100
 MODEL CONFIDENCE: {{ digest.linkedin_opportunity.model_confidence }}/100
-WHY NOW: {{ digest.linkedin_opportunity.why_now }}
 
-READY-TO-POST DRAFT
-{% for line in digest.linkedin_opportunity.post_lines %}{{ line }}
-
-{% endfor %}GROUNDING
+GROUNDING
 {% for item in linkedin_evidence %}- SOURCE {{ "%02d"|format(item.position) }}: {{ item.story.url }}
 {% endfor %}SIGNAL BASIS: TODAY'S VERIFIED NEWS ONLY. LINKEDIN PUBLIC-POST SCAN IS UNAVAILABLE THROUGH STANDARD OFFICIAL ACCESS. IMPRESSION POTENTIAL IS NOT A GUARANTEE. MODEL CONFIDENCE IS CAPPED AT 65 WITHOUT FIRST-PARTY ANALYTICS.
 

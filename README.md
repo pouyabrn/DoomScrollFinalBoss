@@ -8,8 +8,8 @@ public repo without putting the private list in Git. It reads a curated set of o
 feeds, research feeds, expert newsletters, OpenRouter, approved Reddit, and the
 official X API. It clusters duplicate stories, ranks what actually matters, writes an
 ELI5 explanation for each pick, sends at most 20, then ends with a cautious 2–3 line
-read on what might happen in AI next week and one ready-to-post LinkedIn opportunity
-for the next 24 hours.
+read on what might happen in AI next week and one LinkedIn topic opportunity for the
+next 24 hours.
 
 The initial architecture and implementation pass was built with Codex SOL 5.6. The
 repo is aggressively tested because “the model will probably return valid JSON” is how
@@ -30,8 +30,8 @@ pretend otherwise.
   metadata, OpenRouter’s official feeds, and linked primary sources.
 - LinkedIn does not expose a normal API for searching arbitrary public posts. This app
   does not scrape it or fake a trend scan. The final email section turns the day's
-  strongest verified news into a post draft and says exactly what its signal is based
-  on.
+  strongest verified news into a bold topic with a short “why this topic” explanation
+  and says exactly what its signal is based on.
 
 “Every AI newsletter” here means an extensible, reviewed source registry, not random
 internet scraping. The starter registry has 34 publisher/discovery sources plus two
@@ -53,9 +53,9 @@ Add or remove them in
                                       |
                      final diverse top 20
                                       |
-                  small strict LinkedIn writing pass
+                small strict LinkedIn topic-selection pass
                                       |
-                 ELI5 + forecast + post opportunity
+                ELI5 + forecast + topic opportunity
                                       |
                   HTML and text email through Resend
                                       |

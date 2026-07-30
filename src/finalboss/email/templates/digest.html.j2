@@ -52,15 +52,14 @@
       .linkedin-head { padding: 24px 25px 22px; border-bottom: 1px solid #0a0a0a; }
       .linkedin-kicker { margin: 0 0 8px; font-size: 9px; line-height: 13px; font-weight: bold; letter-spacing: .9px; text-transform: uppercase; }
       .linkedin-title { margin: 0; max-width: 520px; font-size: 28px; line-height: 31px; font-weight: 900; letter-spacing: -1px; }
+      .linkedin-why-label { margin: 17px 0 5px; font-size: 9px; line-height: 13px; font-weight: bold; letter-spacing: .9px; text-transform: uppercase; }
+      .linkedin-why { margin: 0; max-width: 540px; font-size: 14px; line-height: 21px; }
       .score-cell { width: 50%; padding: 18px 20px; vertical-align: top; border-bottom: 1px solid #0a0a0a; }
       .score-cell-left { border-right: 1px solid #0a0a0a; }
       .score-label { margin: 0 0 5px; font-size: 8px; line-height: 12px; font-weight: bold; letter-spacing: .7px; text-transform: uppercase; }
       .score-value { margin: 0; font-size: 32px; line-height: 34px; letter-spacing: -2px; }
       .score-note { margin: 5px 0 0; font-size: 8px; line-height: 12px; text-transform: uppercase; }
       .linkedin-body { padding: 25px 25px 28px; }
-      .why-now { margin: 0 0 20px; padding: 13px 14px 14px; border-left: 5px solid #0a0a0a; background: #f0f0eb; }
-      .post-box { margin: 0 0 20px; padding: 18px 18px 9px; border: 1px solid #0a0a0a; background: #ffffff; }
-      .post-line { margin: 0 0 13px; font-size: 15px; line-height: 22px; }
       .evidence-link { display: inline-block; margin: 5px 5px 0 0; padding: 8px 10px; border: 1px solid #0a0a0a; color: #0a0a0a; font-size: 8px; line-height: 11px; font-weight: bold; text-decoration: none; letter-spacing: .4px; text-transform: uppercase; }
       .signal-basis { margin: 17px 0 0; padding-top: 11px; border-top: 1px dotted #73736d; font-size: 8px; line-height: 13px; text-transform: uppercase; }
       .footer { padding: 22px 25px 24px; border-top: 1px solid #0a0a0a; }
@@ -91,7 +90,6 @@
         .score-cell { display: block !important; width: 100% !important; box-sizing: border-box !important; padding: 15px 18px !important; }
         .score-cell-left { border-right: 0 !important; }
         .linkedin-body { padding: 20px 18px 23px !important; }
-        .post-box { padding: 15px 14px 5px !important; }
         .footer { padding: 19px 18px 21px !important; }
       }
     </style>
@@ -218,8 +216,10 @@
                 <table role="presentation" width="100%">
                   <tr>
                     <td class="linkedin-head">
-                      <p class="linkedin-kicker mono">FINAL UNIT // LINKEDIN POST OPPORTUNITY // NEXT 24H</p>
+                      <p class="linkedin-kicker mono">FINAL UNIT // LINKEDIN TOPIC OPPORTUNITY // NEXT 24H</p>
                       <h2 class="linkedin-title">{{ digest.linkedin_opportunity.topic }}</h2>
+                      <p class="linkedin-why-label mono">WHY THIS TOPIC</p>
+                      <p class="linkedin-why">{{ digest.linkedin_opportunity.why_now }}</p>
                     </td>
                   </tr>
                   <tr>
@@ -242,16 +242,6 @@
                   </tr>
                   <tr>
                     <td class="linkedin-body">
-                      <div class="why-now" style="border-left-color: {{ accent }};">
-                        <p class="label mono">WHY THIS TOPIC NOW</p>
-                        <p class="copy">{{ digest.linkedin_opportunity.why_now }}</p>
-                      </div>
-                      <p class="label mono">READY-TO-POST DRAFT</p>
-                      <div class="post-box">
-                        {% for line in digest.linkedin_opportunity.post_lines %}
-                        <p class="post-line">{{ line }}</p>
-                        {% endfor %}
-                      </div>
                       <p class="label mono">GROUNDING / PRIMARY SIGNALS</p>
                       <div>
                         {% for item in linkedin_evidence %}

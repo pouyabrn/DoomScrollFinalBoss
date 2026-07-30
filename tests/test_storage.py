@@ -36,13 +36,6 @@ def _digest(story: Story) -> Digest:
         forecast_confidence="low",
         linkedin_opportunity=LinkedInOpportunity(
             topic="A model release changes a practical developer decision",
-            post_lines=[
-                "A model release changes a practical developer decision.",
-                "The source says the model improves a documented class of tasks.",
-                "That may lower the cost of a common developer workflow.",
-                "I would verify it against the current baseline before changing plans.",
-                "What would you test first?",
-            ],
             why_now="This is the strongest grounded story in the test briefing today.",
             impression_potential=70,
             model_confidence=45,

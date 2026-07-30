@@ -39,8 +39,8 @@ async def test_fixture_pipeline_builds_top_twenty_without_network(
     html = output.read_text(encoding="utf-8")
     assert "ELI5 / SIMPLE DECODE" in html
     assert "PREDICTION ENGINE // WHAT HAPPENS NEXT" in html
-    assert "FINAL UNIT // LINKEDIN POST OPPORTUNITY // NEXT 24H" in html
-    assert html.index("PREDICTION ENGINE") < html.index("LINKEDIN POST OPPORTUNITY")
+    assert "FINAL UNIT // LINKEDIN TOPIC OPPORTUNITY // NEXT 24H" in html
+    assert html.index("PREDICTION ENGINE") < html.index("LINKEDIN TOPIC OPPORTUNITY")
 
 
 @pytest.mark.asyncio

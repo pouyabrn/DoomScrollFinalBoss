@@ -151,13 +151,12 @@ class EditorialItem(BaseModel):
         return " ".join(value.split())
 
 
-class LinkedInDraft(BaseModel):
-    """Bounded, grounded prose returned by the editorial model."""
+class LinkedInTopic(BaseModel):
+    """Bounded, grounded topic returned by the editorial model."""
 
     model_config = ConfigDict(extra="forbid")
 
     topic: str = Field(min_length=10, max_length=160)
-    post_lines: list[str] = Field(min_length=4, max_length=7)
     why_now: str = Field(min_length=10, max_length=300)
     evidence_item_ids: list[str] = Field(min_length=1, max_length=3)
 
@@ -165,16 +164,6 @@ class LinkedInDraft(BaseModel):
     @classmethod
     def one_line(cls, value: str) -> str:
         return " ".join(value.split())
-
-    @field_validator("post_lines")
-    @classmethod
-    def compact_post(cls, value: list[str]) -> list[str]:
-        normalized = [" ".join(line.split()) for line in value]
-        if any(len(line) < 10 or len(line) > 420 for line in normalized):
-            raise ValueError("LinkedIn post lines must each contain 10-420 characters")
-        if sum(len(line) for line in normalized) > 1800:
-            raise ValueError("LinkedIn post must not exceed 1,800 characters")
-        return normalized
 
     @field_validator("evidence_item_ids")
     @classmethod
@@ -216,7 +205,6 @@ class LinkedInOpportunity(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     topic: str = Field(min_length=10, max_length=160)
-    post_lines: list[str] = Field(min_length=4, max_length=7)
     why_now: str = Field(min_length=10, max_length=300)
     impression_potential: int = Field(ge=0, le=90)
     model_confidence: int = Field(ge=0, le=65)

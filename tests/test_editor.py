@@ -12,7 +12,7 @@ from finalboss.llm.editor import (
     deterministic_editorial,
     ensure_editorial_coverage,
 )
-from finalboss.models import EditorialItem, EditorialResult, LinkedInDraft, Story
+from finalboss.models import EditorialItem, EditorialResult, LinkedInTopic, Story
 
 
 def test_deterministic_editorial_is_grounded(make_story: Callable[..., Story]) -> None:
@@ -65,15 +65,8 @@ def test_editor_rejects_unknown_and_duplicate_ids(make_story: Callable[..., Stor
     with pytest.raises(ValueError, match="unknown"):
         OpenRouterEditor._validate_ids(unknown, {story.id})
 
-    linkedin = LinkedInDraft(
+    linkedin = LinkedInTopic(
         topic="A cheaper reasoning model changes the deployment question",
-        post_lines=[
-            "A cheaper reasoning model changes the deployment question.",
-            "The release describes stronger reasoning at a lower operating cost.",
-            "That could let more teams test advanced workflows without a large budget.",
-            "I would compare it with the current baseline before changing a roadmap.",
-            "Which workflow would you test first?",
-        ],
         why_now="The documented release creates a timely question for AI builders.",
         evidence_item_ids=[story.id],
     )
@@ -131,7 +124,7 @@ async def test_openrouter_editor_uses_strict_grounded_output(
     assert item_schema["minItems"] == item_schema["maxItems"] == 1
     assert "url" not in item_schema["items"]["properties"]
     assert (
-        "linkedin_draft"
+        "linkedin_topic"
         not in request_payload["response_format"]["json_schema"]["schema"]["properties"]
     )
 
@@ -152,13 +145,6 @@ async def test_linkedin_editor_uses_small_strict_grounded_output(
     )
     response = {
         "topic": "A cheaper reasoning model changes the deployment question",
-        "post_lines": [
-            "A cheaper reasoning model changes the deployment question.",
-            "The release describes stronger reasoning at a lower operating cost.",
-            "That could let more teams test advanced workflows without a large budget.",
-            "I would compare it with the current baseline before changing a roadmap.",
-            "Which workflow would you test first?",
-        ],
         "why_now": "The documented release creates a timely question for AI builders.",
         "evidence_item_ids": [story.id],
     }
@@ -177,11 +163,8 @@ async def test_linkedin_editor_uses_small_strict_grounded_output(
         ).edit([(story, editorial, 90.0)])
     assert result.evidence_item_ids == [story.id]
     request_payload = __import__("json").loads(route.calls[0].request.content)
-    linkedin_schema = request_payload["response_format"]["json_schema"]["schema"]["properties"][
-        "post_lines"
-    ]
-    assert linkedin_schema["minItems"] == 4
     properties = request_payload["response_format"]["json_schema"]["schema"]["properties"]
+    assert "post_lines" not in properties
     assert "impression_potential" not in properties
     assert "model_confidence" not in properties
     assert "url" not in request_payload["messages"][1]["content"]

@@ -4,7 +4,7 @@
 
 DoomScroll Final Boss is a Python 3.12 modular monolith executed as a bounded daily
 batch job. Crawling is deterministic. The LLM is used only for semantic editorial
-judgment, ELI5 prose, a short grounded forecast, and one news-grounded LinkedIn draft.
+judgment, ELI5 prose, a short grounded forecast, and one news-grounded LinkedIn topic.
 
 This avoids an autonomous-agent crawler: it is more predictable, cheaper, easier to
 audit, and much safer around prompt injection and platform terms.
@@ -38,7 +38,7 @@ X Recent Search ────┘          |
                  small grounded LinkedIn model call
                                |
                                v
-                validated draft + bounded app scores
+                validated topic + bounded app scores
                                |
                   ┌────────────┴────────────┐
                   v                         v
@@ -112,11 +112,11 @@ beyond the credible model-returned set.
 The final email section is not a LinkedIn crawler. Standard official access does not
 permit searching arbitrary public member posts, and closed member-read permissions
 cannot be used by this project. After the top 20 is final, a separate small model call
-chooses a topic and writes a bounded draft using up to eight final digest item IDs.
-Keeping this contract separate prevents post-writing failure from discarding the
-proven news edit. The application replaces the whole draft with deterministic
-source-text prose if its evidence is missing from the final selection or the small
-model call is unavailable.
+chooses a topic and writes a bounded “why this topic” explanation using up to eight
+final digest item IDs. Keeping this contract separate prevents topic-selection failure
+from discarding the proven news edit. The application replaces the topic analysis with
+deterministic source-grounded prose if its evidence is missing from the final selection
+or the small model call is unavailable.
 
 Displayed scores are application-computed:
 
