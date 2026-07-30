@@ -34,6 +34,7 @@ async def test_fixture_pipeline_builds_top_twenty_without_network(
     )
     assert summary.digest_count == 20
     assert summary.sent is False
+    assert summary.metadata["linkedin_model"] == "deterministic-fallback"
     assert output.exists()
     html = output.read_text(encoding="utf-8")
     assert "ELI5 / SIMPLE DECODE" in html

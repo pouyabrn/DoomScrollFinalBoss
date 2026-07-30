@@ -19,6 +19,7 @@ from finalboss.email.resend import ResendSender
 from finalboss.http import BoundedHttpClient
 from finalboss.llm.editor import (
     OpenRouterEditor,
+    OpenRouterLinkedInEditor,
     deterministic_editorial,
     ensure_editorial_coverage,
 )
@@ -26,7 +27,9 @@ from finalboss.models import (
     CollectionResult,
     Digest,
     DigestItem,
+    EditorialItem,
     EditorialResult,
+    LinkedInDraft,
     RenderedDigest,
     RunSummary,
     SourceKind,
@@ -35,7 +38,10 @@ from finalboss.models import (
     Story,
 )
 from finalboss.processing.dedupe import cluster_stories
-from finalboss.processing.linkedin import build_linkedin_opportunity
+from finalboss.processing.linkedin import (
+    build_linkedin_opportunity,
+    deterministic_linkedin_draft,
+)
 from finalboss.processing.normalize import fingerprint
 from finalboss.processing.rank import deterministic_rank, final_select
 from finalboss.sources.base import SourceAdapter
@@ -183,6 +189,10 @@ class DigestPipeline:
                 selected = final_select(candidates, editorial.items, self._config.newsletter)
                 if not selected:
                     raise RuntimeError("no stories passed the editorial threshold")
+                linkedin_draft, linkedin_model_used = await self._edit_linkedin(
+                    selected,
+                    client=client,
+                )
 
                 digest = Digest(
                     edition_date=edition_date,
@@ -201,7 +211,7 @@ class DigestPipeline:
                     forecast_lines=editorial.forecast_lines,
                     forecast_confidence=editorial.forecast_confidence,
                     linkedin_opportunity=build_linkedin_opportunity(
-                        editorial.linkedin_draft,
+                        linkedin_draft,
                         selected,
                     ),
                     source_statuses=collection.statuses,
@@ -235,7 +245,10 @@ class DigestPipeline:
                         sent=False,
                         degraded_sources=degraded_sources,
                         output_path=str(output_path),
-                        metadata={"model": model_used},
+                        metadata={
+                            "model": model_used,
+                            "linkedin_model": linkedin_model_used,
+                        },
                     )
 
                 pending = {
@@ -258,7 +271,10 @@ class DigestPipeline:
                     candidate_count=len(candidates),
                     digest_count=digest_count,
                     degraded_sources=degraded_sources,
-                    extra_metadata={"model": model_used},
+                    extra_metadata={
+                        "model": model_used,
+                        "linkedin_model": linkedin_model_used,
+                    },
                 )
         except Exception as exc:
             database.finish_run(
@@ -327,6 +343,29 @@ class DigestPipeline:
             deterministic_editorial(candidates, top_n=self._config.newsletter.top_n),
             "deterministic-fallback",
         )
+
+    async def _edit_linkedin(
+        self,
+        selected: list[tuple[Story, EditorialItem, float]],
+        *,
+        client: BoundedHttpClient,
+    ) -> tuple[LinkedInDraft, str]:
+        api_key = secret_value(self._settings.openrouter_api_key)
+        if api_key:
+            try:
+                result = await OpenRouterLinkedInEditor(
+                    self._config.llm,
+                    client,
+                    api_key=api_key,
+                ).edit(selected)
+                return result, self._config.llm.model
+            except Exception as exc:
+                logger.warning(
+                    "linkedin_editorial_fallback",
+                    extra={"error_category": type(exc).__name__},
+                )
+        story, editorial, _ = selected[0]
+        return deterministic_linkedin_draft(story, editorial), "deterministic-fallback"
 
     def _delivery_identities(self, *, required: bool) -> tuple[DeliveryIdentity, ...]:
         recipients = parse_recipient_emails(self._settings.email_to)

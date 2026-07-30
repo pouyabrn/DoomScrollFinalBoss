@@ -191,7 +191,6 @@ class EditorialResult(BaseModel):
     forecast_lines: list[str] = Field(min_length=2, max_length=3)
     forecast_confidence: Literal["low", "medium", "high"]
     evidence_item_ids: list[str] = Field(min_length=1, max_length=8)
-    linkedin_draft: LinkedInDraft
 
     @field_validator("forecast_lines")
     @classmethod

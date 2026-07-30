@@ -49,9 +49,13 @@ Add or remove them in
                                       |
                     deterministic importance pre-rank
                                       |
-                     one strict-schema LLM edit pass
+                one strict top-20 LLM editorial pass
                                       |
-          top 20 + ELI5 + forecast + LinkedIn post opportunity
+                     final diverse top 20
+                                      |
+                  small strict LinkedIn writing pass
+                                      |
+                 ELI5 + forecast + post opportunity
                                       |
                   HTML and text email through Resend
                                       |
@@ -231,7 +235,7 @@ an address. Addresses exist only in the private environment secret and in memory
 that run sends.
 
 “Private” still has a real-world boundary: GitHub runs the code, Neon stores the ledger,
-OpenRouter processes the editorial batch, Resend transports the message, and your mail
+OpenRouter processes the editorial batches, Resend transports the message, and your mail
 provider receives it. Read [`docs/PRIVACY.md`](docs/PRIVACY.md) before putting sensitive
 material into private source customizations.
 
@@ -260,7 +264,7 @@ make audit
 
 Current local gate:
 
-- 61 tests passing
+- 62 tests passing
 - 84%+ branch-aware coverage
 - Ruff clean
 - strict mypy clean

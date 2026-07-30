@@ -99,9 +99,10 @@ variable; OpenRouter itself says they are generally not a production guarantee.
 - [Zero-data-retention routing](https://openrouter.ai/docs/guides/features/zdr)
 
 The live pricing snapshot for `openai/gpt-oss-120b` was $0.037/M input and $0.17/M
-output. An estimated 60k input and 8k output tokens/day is about $0.11/month. The app
-uses one batch request, a model fallback, strict schema, and a deterministic outage
-fallback. The deployment owner should enforce a $0.25 key limit.
+output. An estimated 63k input and 8.5k output tokens/day across the main editorial
+batch and a small final-story LinkedIn pass remains about $0.11/month. Both calls use
+strict schemas and deterministic outage fallbacks. The deployment owner should enforce
+a $0.25 key limit.
 
 ## Email
 

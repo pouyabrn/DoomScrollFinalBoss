@@ -35,7 +35,10 @@ X Recent Search ────┘          |
                                v
                at most 20 diverse, credible DigestItems
                                |
-                 grounded LinkedIn draft + bounded scores
+                 small grounded LinkedIn model call
+                               |
+                               v
+                validated draft + bounded app scores
                                |
                   ┌────────────┴────────────┐
                   v                         v
@@ -108,10 +111,12 @@ beyond the credible model-returned set.
 
 The final email section is not a LinkedIn crawler. Standard official access does not
 permit searching arbitrary public member posts, and closed member-read permissions
-cannot be used by this project. The editor therefore chooses a topic and writes a
-bounded draft using only final digest item IDs. The application replaces the whole
-draft with deterministic source-text prose if its evidence is missing from the final
-selection.
+cannot be used by this project. After the top 20 is final, a separate small model call
+chooses a topic and writes a bounded draft using up to eight final digest item IDs.
+Keeping this contract separate prevents post-writing failure from discarding the
+proven news edit. The application replaces the whole draft with deterministic
+source-text prose if its evidence is missing from the final selection or the small
+model call is unavailable.
 
 Displayed scores are application-computed:
 
