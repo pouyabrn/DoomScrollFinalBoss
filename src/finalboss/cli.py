@@ -10,7 +10,12 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config as AlembicConfig
 
-from finalboss.config import Settings, load_configuration, secret_value
+from finalboss.config import (
+    Settings,
+    load_configuration,
+    parse_recipient_emails,
+    secret_value,
+)
 from finalboss.observability import configure_logging
 from finalboss.pipeline import DigestPipeline
 from finalboss.storage.database import Database
@@ -62,13 +67,21 @@ def _doctor(
     delivery_only: bool,
 ) -> int:
     public, registry = load_configuration(settings)
+    try:
+        recipient_count = len(parse_recipient_emails(settings.email_to))
+    except ValueError:
+        recipient_count = 0
+    sender = (secret_value(settings.email_from) or "").casefold()
+    sender_supports_recipients = not (recipient_count > 1 and "onboarding@resend.dev" in sender)
     checks: dict[str, object] = {
         "configuration": "ok",
         "feeds_configured": len(registry.feeds),
         "openrouter_key": bool(secret_value(settings.openrouter_api_key)),
         "resend_key": bool(secret_value(settings.resend_api_key)),
-        "recipient": bool(secret_value(settings.email_to)),
+        "recipient": recipient_count > 0,
+        "recipient_count": recipient_count,
         "sender": bool(secret_value(settings.email_from)),
+        "sender_supports_recipient_count": sender_supports_recipients,
         "privacy_key": len(secret_value(settings.privacy_key) or "") >= 32,
         "reddit_credentials": bool(
             secret_value(settings.reddit_client_id) and secret_value(settings.reddit_client_secret)
@@ -92,9 +105,26 @@ def _doctor(
 
     required: list[str] = []
     if delivery_only:
-        required.extend(["resend_key", "recipient", "sender", "privacy_key"])
+        required.extend(
+            [
+                "resend_key",
+                "recipient",
+                "sender",
+                "sender_supports_recipient_count",
+                "privacy_key",
+            ]
+        )
     elif strict:
-        required.extend(["openrouter_key", "resend_key", "recipient", "sender", "privacy_key"])
+        required.extend(
+            [
+                "openrouter_key",
+                "resend_key",
+                "recipient",
+                "sender",
+                "sender_supports_recipient_count",
+                "privacy_key",
+            ]
+        )
     if require_social and not delivery_only:
         required.extend(["reddit_credentials", "x_credentials"])
     failed = not database_ok or any(not checks[key] for key in required)

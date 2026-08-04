@@ -3,16 +3,23 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from finalboss.config import PublicConfig, Settings, secret_value
+from finalboss.config import (
+    PublicConfig,
+    Settings,
+    parse_recipient_emails,
+    secret_value,
+)
 from finalboss.email.renderer import DigestRenderer
 from finalboss.email.resend import ResendSender
 from finalboss.http import BoundedHttpClient
 from finalboss.llm.editor import (
     OpenRouterEditor,
+    OpenRouterLinkedInEditor,
     deterministic_editorial,
     ensure_editorial_coverage,
 )
@@ -20,7 +27,9 @@ from finalboss.models import (
     CollectionResult,
     Digest,
     DigestItem,
+    EditorialItem,
     EditorialResult,
+    LinkedInTopic,
     RenderedDigest,
     RunSummary,
     SourceKind,
@@ -29,6 +38,10 @@ from finalboss.models import (
     Story,
 )
 from finalboss.processing.dedupe import cluster_stories
+from finalboss.processing.linkedin import (
+    build_linkedin_opportunity,
+    deterministic_linkedin_topic,
+)
 from finalboss.processing.normalize import fingerprint
 from finalboss.processing.rank import deterministic_rank, final_select
 from finalboss.sources.base import SourceAdapter
@@ -39,6 +52,12 @@ from finalboss.sources.x import XAdapter
 from finalboss.storage.database import Database, StoredDigest, recipient_fingerprint
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class DeliveryIdentity:
+    recipient: str
+    recipient_hmac: str
 
 
 class DigestPipeline:
@@ -75,63 +94,63 @@ class DigestPipeline:
         digest_count = 0
         degraded_sources = 0
         try:
-            recipient, privacy_key = self._delivery_identity(required=send)
-            recipient_hmac = (
-                recipient_fingerprint(recipient, privacy_key)
-                if recipient is not None and privacy_key is not None
-                else "dry-run"
-            )
+            identities = self._delivery_identities(required=send)
             async with BoundedHttpClient(self._config.network) as client:
                 if force_resend:
-                    existing = database.get_digest(
+                    existing = database.get_digests(
                         edition_date=edition_date,
-                        recipient_hmac=recipient_hmac,
+                        recipient_hmacs=[identity.recipient_hmac for identity in identities],
                     )
-                    if existing is None or existing.status != "sent":
+                    if len(existing) != len(identities) or any(
+                        digest.status != "sent" for digest in existing.values()
+                    ):
                         raise RuntimeError(
-                            "today's sent digest is unavailable; run a normal send first"
+                            "a recipient is missing today's sent digest; run a normal send first"
                         )
-                    return await self._force_resend_existing(
+                    self._ensure_matching_payloads(existing)
+                    digest_count = max(
+                        (digest.item_count for digest in existing.values()),
+                        default=0,
+                    )
+                    return await self._force_resend_existing_batch(
                         existing=existing,
                         client=client,
                         database=database,
                         run_id=run_id,
-                        recipient=recipient or "",
-                        recipient_hmac=recipient_hmac,
+                        identities=identities,
                     )
 
                 if send:
-                    existing = database.get_digest(
+                    existing = database.get_digests(
                         edition_date=edition_date,
-                        recipient_hmac=recipient_hmac,
+                        recipient_hmacs=[identity.recipient_hmac for identity in identities],
                     )
-                    if existing is not None:
-                        if existing.status == "sent":
-                            database.finish_run(
-                                run_id,
-                                status="already_sent",
-                                collected_count=0,
-                                digest_count=0,
-                                degraded_sources=0,
-                            )
-                            return RunSummary(
-                                run_id=run_id,
-                                edition_date=edition_date,
-                                collected_count=0,
-                                clustered_count=0,
-                                candidate_count=0,
-                                digest_count=0,
-                                sent=False,
-                                degraded_sources=0,
-                                metadata={"outcome": "already_sent"},
-                            )
-                        return await self._retry_existing(
+                    if existing:
+                        self._ensure_matching_payloads(existing)
+                        source = next(iter(existing.values()))
+                        for identity in identities:
+                            if identity.recipient_hmac not in existing:
+                                existing[identity.recipient_hmac] = database.clone_pending_digest(
+                                    source_digest_id=source.id,
+                                    recipient_hmac=identity.recipient_hmac,
+                                )
+                        self._ensure_matching_payloads(existing)
+                        digest_count = max(
+                            (digest.item_count for digest in existing.values()),
+                            default=0,
+                        )
+                        return await self._deliver_existing_batch(
                             existing=existing,
                             client=client,
                             database=database,
                             run_id=run_id,
-                            recipient=recipient or "",
-                            recipient_hmac=recipient_hmac,
+                            identities=identities,
+                            collected_count=0,
+                            clustered_count=0,
+                            candidate_count=0,
+                            digest_count=digest_count,
+                            degraded_sources=0,
+                            extra_metadata={"source": "stored_digest"},
                         )
 
                 collection = (
@@ -170,6 +189,10 @@ class DigestPipeline:
                 selected = final_select(candidates, editorial.items, self._config.newsletter)
                 if not selected:
                     raise RuntimeError("no stories passed the editorial threshold")
+                linkedin_topic, linkedin_model_used = await self._edit_linkedin(
+                    selected,
+                    client=client,
+                )
 
                 digest = Digest(
                     edition_date=edition_date,
@@ -187,6 +210,10 @@ class DigestPipeline:
                     ],
                     forecast_lines=editorial.forecast_lines,
                     forecast_confidence=editorial.forecast_confidence,
+                    linkedin_opportunity=build_linkedin_opportunity(
+                        linkedin_topic,
+                        selected,
+                    ),
                     source_statuses=collection.statuses,
                     model=model_used,
                     prompt_version=self._config.llm.prompt_version,
@@ -218,40 +245,36 @@ class DigestPipeline:
                         sent=False,
                         degraded_sources=degraded_sources,
                         output_path=str(output_path),
-                        metadata={"model": model_used},
+                        metadata={
+                            "model": model_used,
+                            "linkedin_model": linkedin_model_used,
+                        },
                     )
 
-                pending = database.save_pending_digest(
-                    digest=digest,
-                    rendered=rendered,
-                    recipient_hmac=recipient_hmac,
-                )
-                message_id = await self._send(
+                pending = {
+                    identity.recipient_hmac: database.save_pending_digest(
+                        digest=digest,
+                        rendered=rendered,
+                        recipient_hmac=identity.recipient_hmac,
+                    )
+                    for identity in identities
+                }
+                self._ensure_matching_payloads(pending)
+                return await self._deliver_existing_batch(
+                    existing=pending,
                     client=client,
-                    rendered=pending.rendered,
-                    recipient=recipient or "",
-                    recipient_hmac=recipient_hmac,
-                    edition_date=edition_date.isoformat(),
-                )
-                database.mark_sent(pending.id, message_id)
-                database.finish_run(
-                    run_id,
-                    status="sent",
-                    collected_count=collected_count,
-                    digest_count=digest_count,
-                    degraded_sources=degraded_sources,
-                )
-                await self._ping_healthcheck(client, failed=False)
-                return RunSummary(
+                    database=database,
                     run_id=run_id,
-                    edition_date=edition_date,
+                    identities=identities,
                     collected_count=collected_count,
                     clustered_count=len(clustered),
                     candidate_count=len(candidates),
                     digest_count=digest_count,
-                    sent=True,
                     degraded_sources=degraded_sources,
-                    metadata={"model": model_used},
+                    extra_metadata={
+                        "model": model_used,
+                        "linkedin_model": linkedin_model_used,
+                    },
                 )
         except Exception as exc:
             database.finish_run(
@@ -321,22 +344,70 @@ class DigestPipeline:
             "deterministic-fallback",
         )
 
-    def _delivery_identity(self, *, required: bool) -> tuple[str | None, str | None]:
-        recipient = secret_value(self._settings.email_to)
+    async def _edit_linkedin(
+        self,
+        selected: list[tuple[Story, EditorialItem, float]],
+        *,
+        client: BoundedHttpClient,
+    ) -> tuple[LinkedInTopic, str]:
+        api_key = secret_value(self._settings.openrouter_api_key)
+        if api_key:
+            try:
+                result = await OpenRouterLinkedInEditor(
+                    self._config.llm,
+                    client,
+                    api_key=api_key,
+                ).edit(selected)
+                return result, self._config.llm.model
+            except Exception as exc:
+                logger.warning(
+                    "linkedin_editorial_fallback",
+                    extra={"error_category": type(exc).__name__},
+                )
+        story, editorial, _ = selected[0]
+        return deterministic_linkedin_topic(story, editorial), "deterministic-fallback"
+
+    def _delivery_identities(self, *, required: bool) -> tuple[DeliveryIdentity, ...]:
+        recipients = parse_recipient_emails(self._settings.email_to)
         privacy_key = secret_value(self._settings.privacy_key)
+        sender = secret_value(self._settings.email_from)
         if required:
             missing = []
-            if not recipient:
+            if not recipients:
                 missing.append("FINALBOSS_EMAIL_TO")
             if not privacy_key or len(privacy_key) < 32:
                 missing.append("FINALBOSS_PRIVACY_KEY (32+ characters)")
-            if not secret_value(self._settings.email_from):
+            if not sender:
                 missing.append("FINALBOSS_EMAIL_FROM")
             if not secret_value(self._settings.resend_api_key):
                 missing.append("FINALBOSS_RESEND_API_KEY")
             if missing:
                 raise RuntimeError("missing required delivery secrets: " + ", ".join(missing))
-        return recipient, privacy_key
+            if len(recipients) > 1 and "onboarding@resend.dev" in (sender or "").casefold():
+                raise RuntimeError("multiple recipients require a verified Resend sending domain")
+        if not privacy_key:
+            return ()
+        return tuple(
+            DeliveryIdentity(
+                recipient=recipient,
+                recipient_hmac=recipient_fingerprint(recipient, privacy_key),
+            )
+            for recipient in recipients
+        )
+
+    @staticmethod
+    def _ensure_matching_payloads(existing: dict[str, StoredDigest]) -> None:
+        payloads = {
+            (
+                digest.rendered.subject,
+                digest.rendered.html,
+                digest.rendered.text,
+                digest.item_count,
+            )
+            for digest in existing.values()
+        }
+        if len(payloads) > 1:
+            raise RuntimeError("stored recipient digests contain conflicting payloads")
 
     async def _send(
         self,
@@ -362,96 +433,144 @@ class DigestPipeline:
             idempotency_key=idempotency_key,
         )
 
-    async def _retry_existing(
+    async def _deliver_existing_batch(
         self,
         *,
-        existing: StoredDigest,
+        existing: dict[str, StoredDigest],
         client: BoundedHttpClient,
         database: Database,
         run_id: str,
-        recipient: str,
-        recipient_hmac: str,
+        identities: tuple[DeliveryIdentity, ...],
+        collected_count: int,
+        clustered_count: int,
+        candidate_count: int,
+        digest_count: int,
+        degraded_sources: int,
+        extra_metadata: dict[str, object],
     ) -> RunSummary:
-        try:
-            message_id = await self._send(
-                client=client,
-                rendered=existing.rendered,
-                recipient=recipient,
-                recipient_hmac=recipient_hmac,
-                edition_date=existing.edition_date.isoformat(),
-            )
-            database.mark_sent(existing.id, message_id)
-            database.finish_run(
-                run_id,
-                status="sent_retry",
-                collected_count=0,
-                digest_count=0,
-                degraded_sources=0,
-            )
-            return RunSummary(
-                run_id=run_id,
-                edition_date=existing.edition_date,
-                collected_count=0,
-                clustered_count=0,
-                candidate_count=0,
-                digest_count=0,
-                sent=True,
-                degraded_sources=0,
-                metadata={"outcome": "retried_pending_digest"},
-            )
-        except Exception as exc:
-            database.mark_failed(existing.id, type(exc).__name__)
-            raise
+        sent_count = 0
+        already_sent_count = 0
+        failed_count = 0
+        edition_date = next(iter(existing.values())).edition_date
+        for identity in identities:
+            digest = existing[identity.recipient_hmac]
+            if digest.status == "sent":
+                already_sent_count += 1
+                continue
+            try:
+                message_id = await self._send(
+                    client=client,
+                    rendered=digest.rendered,
+                    recipient=identity.recipient,
+                    recipient_hmac=identity.recipient_hmac,
+                    edition_date=digest.edition_date.isoformat(),
+                )
+                database.mark_sent(digest.id, message_id)
+                sent_count += 1
+            except Exception as exc:
+                failed_count += 1
+                database.mark_failed(digest.id, type(exc).__name__)
 
-    async def _force_resend_existing(
+        if failed_count:
+            raise RuntimeError(f"{failed_count} recipient deliveries failed")
+
+        outcome = "already_sent" if sent_count == 0 else "recipient_batch_sent"
+        status = "already_sent" if sent_count == 0 else "sent"
+        database.finish_run(
+            run_id,
+            status=status,
+            collected_count=collected_count,
+            digest_count=digest_count,
+            degraded_sources=degraded_sources,
+        )
+        await self._ping_healthcheck(client, failed=False)
+        return RunSummary(
+            run_id=run_id,
+            edition_date=edition_date,
+            collected_count=collected_count,
+            clustered_count=clustered_count,
+            candidate_count=candidate_count,
+            digest_count=digest_count,
+            sent=sent_count > 0,
+            degraded_sources=degraded_sources,
+            metadata={
+                **extra_metadata,
+                "outcome": outcome,
+                "recipient_count": len(identities),
+                "sent_count": sent_count,
+                "already_sent_count": already_sent_count,
+            },
+        )
+
+    async def _force_resend_existing_batch(
         self,
         *,
-        existing: StoredDigest,
+        existing: dict[str, StoredDigest],
         client: BoundedHttpClient,
         database: Database,
         run_id: str,
-        recipient: str,
-        recipient_hmac: str,
+        identities: tuple[DeliveryIdentity, ...],
     ) -> RunSummary:
-        resend = database.reserve_resend(
-            existing.id,
+        reservations = database.reserve_resends(
+            [digest.id for digest in existing.values()],
             max_resends=self._config.delivery.max_force_resends_per_day,
         )
-        try:
-            message_id = await self._send(
-                client=client,
-                rendered=existing.rendered,
-                recipient=recipient,
-                recipient_hmac=recipient_hmac,
-                edition_date=existing.edition_date.isoformat(),
-                resend_sequence=resend.sequence,
-            )
-            database.mark_resend_sent(resend.id, message_id)
-            database.finish_run(
-                run_id,
-                status="force_resent",
-                collected_count=0,
-                digest_count=0,
-                degraded_sources=0,
-            )
-            await self._ping_healthcheck(client, failed=False)
-            return RunSummary(
-                run_id=run_id,
-                edition_date=existing.edition_date,
-                collected_count=0,
-                clustered_count=0,
-                candidate_count=0,
-                digest_count=0,
-                sent=True,
-                degraded_sources=0,
-                metadata={
-                    "outcome": "force_resent",
-                    "resend_sequence": resend.sequence,
-                },
-            )
-        except Exception as exc:
-            database.mark_resend_failed(resend.id, type(exc).__name__)
-            raise
+        sent_count = 0
+        skipped_count = 0
+        failed_count = 0
+        sequences: list[int] = []
+        for identity in identities:
+            digest = existing[identity.recipient_hmac]
+            resend = reservations.get(digest.id)
+            if resend is None:
+                skipped_count += 1
+                continue
+            sequences.append(resend.sequence)
+            try:
+                message_id = await self._send(
+                    client=client,
+                    rendered=digest.rendered,
+                    recipient=identity.recipient,
+                    recipient_hmac=identity.recipient_hmac,
+                    edition_date=digest.edition_date.isoformat(),
+                    resend_sequence=resend.sequence,
+                )
+                database.mark_resend_sent(resend.id, message_id)
+                sent_count += 1
+            except Exception as exc:
+                failed_count += 1
+                database.mark_resend_failed(resend.id, type(exc).__name__)
+
+        if failed_count:
+            raise RuntimeError(f"{failed_count} recipient resends failed")
+
+        edition_date = next(iter(existing.values())).edition_date
+        digest_count = max((digest.item_count for digest in existing.values()), default=0)
+        database.finish_run(
+            run_id,
+            status="force_resent",
+            collected_count=0,
+            digest_count=digest_count,
+            degraded_sources=0,
+        )
+        await self._ping_healthcheck(client, failed=False)
+        return RunSummary(
+            run_id=run_id,
+            edition_date=edition_date,
+            collected_count=0,
+            clustered_count=0,
+            candidate_count=0,
+            digest_count=digest_count,
+            sent=sent_count > 0,
+            degraded_sources=0,
+            metadata={
+                "outcome": "force_resent",
+                "recipient_count": len(identities),
+                "sent_count": sent_count,
+                "already_resent_count": skipped_count,
+                "resend_sequence_max": max(sequences, default=0),
+            },
+        )
 
     async def _ping_healthcheck(self, client: BoundedHttpClient, *, failed: bool) -> None:
         url = secret_value(self._settings.healthcheck_url)

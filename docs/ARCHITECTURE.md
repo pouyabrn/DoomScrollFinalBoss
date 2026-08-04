@@ -4,7 +4,7 @@
 
 DoomScroll Final Boss is a Python 3.12 modular monolith executed as a bounded daily
 batch job. Crawling is deterministic. The LLM is used only for semantic editorial
-judgment, ELI5 prose, and a short grounded forecast.
+judgment, ELI5 prose, a short grounded forecast, and one news-grounded LinkedIn topic.
 
 This avoids an autonomous-agent crawler: it is more predictable, cheaper, easier to
 audit, and much safer around prompt injection and platform terms.
@@ -35,15 +35,20 @@ X Recent Search ────┘          |
                                v
                at most 20 diverse, credible DigestItems
                                |
+                 small grounded LinkedIn model call
+                               |
+                               v
+                validated topic + bounded app scores
+                               |
                   ┌────────────┴────────────┐
                   v                         v
              Jinja + CSS inline        plain text render
                   └────────────┬────────────┘
                                v
-                  Postgres pending outbox record
+                Postgres pending outbox rows per recipient
                                |
                                v
-                    Resend idempotent delivery
+              one idempotent Resend request per recipient
                                |
                                v
                       ledger marked as sent
@@ -60,7 +65,7 @@ untrusted. The pipeline:
 3. strips markup from feed and model prose;
 4. sends the model compact quoted records without tools;
 5. accepts only strict-schema item IDs and bounded text;
-6. rejects unknown/duplicate IDs and ungrounded forecast evidence;
+6. rejects unknown/duplicate IDs and ungrounded forecast or LinkedIn evidence;
 7. takes every output link from validated application state.
 
 ## Source adapters
@@ -102,6 +107,28 @@ Selection first applies source/category diversity caps, then treats them as soft
 when necessary to preserve the user-requested top 20. It never fabricates or pads
 beyond the credible model-returned set.
 
+## LinkedIn opportunity
+
+The final email section is not a LinkedIn crawler. Standard official access does not
+permit searching arbitrary public member posts, and closed member-read permissions
+cannot be used by this project. After the top 20 is final, a separate small model call
+chooses a topic and writes a bounded “why this topic” explanation using up to eight
+final digest item IDs. Keeping this contract separate prevents topic-selection failure
+from discarding the proven news edit. The application replaces the topic analysis with
+deterministic source-grounded prose if its evidence is missing from the final selection
+or the small model call is unavailable.
+
+Displayed scores are application-computed:
+
+- **Impression Potential (0–90):** a relative opportunity heuristic based on final news
+  strength and independent evidence count;
+- **Model Confidence (0–65):** evidence quality, editorial confidence, source diversity,
+  and corroboration.
+
+Neither is an impression forecast in absolute numbers. The confidence cap remains
+until approved first-party post analytics can calibrate the heuristic against the
+owner's actual audience.
+
 ## Persistence and exactly-once behavior
 
 Postgres stores:
@@ -122,6 +149,12 @@ Delivery flow:
 
 Production aborts when the database schema is unavailable. It never sends first and
 tries to remember later.
+
+For a list of up to ten recipients, the pipeline renders one edition and creates every
+recipient outbox row before provider contact. Addresses stay in process memory only;
+the public logs and private database use safe counts and keyed fingerprints. Adding a
+recipient later that day clones the persisted edition instead of recollecting or
+calling the LLM. Conflicting stored payloads fail closed.
 
 ## Failure policy
 

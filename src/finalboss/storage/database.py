@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -106,6 +107,7 @@ class StoredDigest:
     edition_date: date
     status: str
     rendered: RenderedDigest
+    item_count: int
 
 
 @dataclass(frozen=True)
@@ -202,6 +204,23 @@ class Database:
             )
             return _to_stored(record) if record is not None else None
 
+    def get_digests(
+        self,
+        *,
+        edition_date: date,
+        recipient_hmacs: Sequence[str],
+    ) -> dict[str, StoredDigest]:
+        if not recipient_hmacs:
+            return {}
+        with self._sessions() as session:
+            records = session.scalars(
+                select(DigestRecord).where(
+                    DigestRecord.edition_date == edition_date,
+                    DigestRecord.recipient_hmac.in_(recipient_hmacs),
+                )
+            ).all()
+            return {record.recipient_hmac: _to_stored(record) for record in records}
+
     def save_pending_digest(
         self,
         *,
@@ -262,37 +281,122 @@ class Database:
             record.status = "failed"
             record.error_category = error_category[:100]
 
+    def clone_pending_digest(
+        self,
+        *,
+        source_digest_id: str,
+        recipient_hmac: str,
+    ) -> StoredDigest:
+        source_edition_date: date | None = None
+        try:
+            with self._sessions.begin() as session:
+                source = session.get(DigestRecord, source_digest_id)
+                if source is None:
+                    raise ValueError("source digest ledger record is missing")
+                source_edition_date = source.edition_date
+                clone = DigestRecord(
+                    id=str(uuid.uuid4()),
+                    edition_date=source_edition_date,
+                    recipient_hmac=recipient_hmac,
+                    status="pending",
+                    subject=source.subject,
+                    html=source.html,
+                    text=source.text,
+                    model=source.model,
+                    prompt_version=source.prompt_version,
+                    created_at=datetime.now(UTC),
+                    items=[
+                        DigestItemRecord(
+                            position=item.position,
+                            story_fingerprint=item.story_fingerprint,
+                            source_id=item.source_id,
+                            canonical_url=item.canonical_url,
+                        )
+                        for item in source.items
+                    ],
+                )
+                session.add(clone)
+            return _to_stored(clone)
+        except IntegrityError:
+            if source_edition_date is None:
+                raise
+            existing = self.get_digest(
+                edition_date=source_edition_date,
+                recipient_hmac=recipient_hmac,
+            )
+            if existing is None:
+                raise
+            return existing
+
     def reserve_resend(self, digest_id: str, *, max_resends: int) -> StoredResend:
         """Reserve one retry-safe resend sequence for an already sent digest."""
+        return self.reserve_resends([digest_id], max_resends=max_resends)[digest_id]
+
+    def reserve_resends(
+        self,
+        digest_ids: Sequence[str],
+        *,
+        max_resends: int,
+    ) -> dict[str, StoredResend]:
+        """Atomically validate and reserve retry-safe sequences for a recipient batch."""
+        unique_ids = sorted(set(digest_ids))
+        if not unique_ids:
+            return {}
         with self._sessions.begin() as session:
-            digest = session.scalar(
-                select(DigestRecord).where(DigestRecord.id == digest_id).with_for_update()
-            )
-            if digest is None:
+            digests = session.scalars(
+                select(DigestRecord)
+                .where(DigestRecord.id.in_(unique_ids))
+                .order_by(DigestRecord.id)
+                .with_for_update()
+            ).all()
+            if len(digests) != len(unique_ids):
                 raise ValueError("digest ledger record is missing")
-            if digest.status != "sent":
+            if any(digest.status != "sent" for digest in digests):
                 raise ValueError("only a sent digest can be force resent")
 
-            latest = session.scalar(
-                select(DigestResendRecord)
-                .where(DigestResendRecord.digest_id == digest_id)
-                .order_by(DigestResendRecord.sequence.desc())
-                .limit(1)
+            latest_by_digest: dict[str, DigestResendRecord | None] = {}
+            for digest in digests:
+                latest_by_digest[digest.id] = session.scalar(
+                    select(DigestResendRecord)
+                    .where(DigestResendRecord.digest_id == digest.id)
+                    .order_by(DigestResendRecord.sequence.desc())
+                    .limit(1)
+                )
+
+            has_incomplete_batch = any(
+                latest is not None and latest.status != "sent"
+                for latest in latest_by_digest.values()
             )
-            if latest is not None and latest.status != "sent":
-                return _to_stored_resend(latest)
-            if latest is not None and latest.sequence >= max_resends:
+            if not has_incomplete_batch and any(
+                latest is not None and latest.sequence >= max_resends
+                for latest in latest_by_digest.values()
+            ):
                 raise ValueError("daily force resend limit reached")
 
-            resend = DigestResendRecord(
-                id=str(uuid.uuid4()),
-                digest_id=digest_id,
-                sequence=1 if latest is None else latest.sequence + 1,
-                status="pending",
-                created_at=datetime.now(UTC),
-            )
-            session.add(resend)
-        return _to_stored_resend(resend)
+            reservations: dict[str, StoredResend] = {}
+            for digest in digests:
+                latest = latest_by_digest[digest.id]
+                if has_incomplete_batch and latest is not None and latest.status == "sent":
+                    continue
+                if latest is not None and latest.status != "sent":
+                    reservations[digest.id] = _to_stored_resend(latest)
+                    continue
+                if (
+                    not has_incomplete_batch
+                    and latest is not None
+                    and latest.sequence >= max_resends
+                ):
+                    raise ValueError("daily force resend limit reached")
+                resend = DigestResendRecord(
+                    id=str(uuid.uuid4()),
+                    digest_id=digest.id,
+                    sequence=1 if latest is None else latest.sequence + 1,
+                    status="pending",
+                    created_at=datetime.now(UTC),
+                )
+                session.add(resend)
+                reservations[digest.id] = _to_stored_resend(resend)
+        return reservations
 
     def mark_resend_sent(self, resend_id: str, provider_message_id: str) -> None:
         with self._sessions.begin() as session:
@@ -336,6 +440,7 @@ def _to_stored(record: DigestRecord) -> StoredDigest:
             html=record.html,
             text=record.text,
         ),
+        item_count=len(record.items),
     )
 
 

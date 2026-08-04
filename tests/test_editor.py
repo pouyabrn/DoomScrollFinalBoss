@@ -8,10 +8,11 @@ from finalboss.config import LlmConfig, NetworkConfig
 from finalboss.http import BoundedHttpClient
 from finalboss.llm.editor import (
     OpenRouterEditor,
+    OpenRouterLinkedInEditor,
     deterministic_editorial,
     ensure_editorial_coverage,
 )
-from finalboss.models import EditorialItem, EditorialResult, Story
+from finalboss.models import EditorialItem, EditorialResult, LinkedInTopic, Story
 
 
 def test_deterministic_editorial_is_grounded(make_story: Callable[..., Story]) -> None:
@@ -64,6 +65,18 @@ def test_editor_rejects_unknown_and_duplicate_ids(make_story: Callable[..., Stor
     with pytest.raises(ValueError, match="unknown"):
         OpenRouterEditor._validate_ids(unknown, {story.id})
 
+    linkedin = LinkedInTopic(
+        topic="A cheaper reasoning model changes the deployment question",
+        why_now="The documented release creates a timely question for AI builders.",
+        evidence_item_ids=[story.id],
+    )
+    OpenRouterLinkedInEditor._validate_ids(linkedin, {story.id})
+    with pytest.raises(ValueError, match="LinkedIn evidence"):
+        OpenRouterLinkedInEditor._validate_ids(
+            linkedin.model_copy(update={"evidence_item_ids": ["invented"]}),
+            {story.id},
+        )
+
 
 @pytest.mark.asyncio
 @respx.mock
@@ -110,3 +123,62 @@ async def test_openrouter_editor_uses_strict_grounded_output(
     item_schema = request_payload["response_format"]["json_schema"]["schema"]["properties"]["items"]
     assert item_schema["minItems"] == item_schema["maxItems"] == 1
     assert "url" not in item_schema["items"]["properties"]
+    assert (
+        "linkedin_topic"
+        not in request_payload["response_format"]["json_schema"]["schema"]["properties"]
+    )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_linkedin_editor_uses_small_strict_grounded_output(
+    make_story: Callable[..., Story],
+) -> None:
+    stories = [make_story(index) for index in range(1, 11)]
+    editorials = [
+        EditorialItem(
+            item_id=story.id,
+            importance=88,
+            eli5="A lab made a reasoning model cheaper and easier to run.",
+            why_it_matters="Developers can use stronger AI with a smaller budget.",
+            category="models",
+            confidence="high",
+        )
+        for story in stories
+    ]
+    response = {
+        "topic": "A cheaper reasoning model changes the deployment question",
+        "why_now": "The documented release creates a timely question for AI builders.",
+        "evidence_item_ids": [stories[0].id],
+    }
+    route = respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={"choices": [{"message": {"content": __import__("json").dumps(response)}}]},
+        )
+    )
+    network = NetworkConfig(user_agent="FinalBossTest/1.0 (+https://example.com)")
+    async with BoundedHttpClient(network) as client:
+        result = await OpenRouterLinkedInEditor(
+            LlmConfig(model="test/model", prompt_version="test-v1", max_attempts=1),
+            client,
+            api_key="secret",
+        ).edit(
+            [
+                (story, editorial, 90.0 - index)
+                for index, (story, editorial) in enumerate(zip(stories, editorials, strict=True))
+            ]
+        )
+    assert result.evidence_item_ids == [stories[0].id]
+    request_payload = __import__("json").loads(route.calls[0].request.content)
+    properties = request_payload["response_format"]["json_schema"]["schema"]["properties"]
+    user_prompt = __import__("json").loads(request_payload["messages"][1]["content"])
+    assert len(user_prompt["candidates"]) == 8
+    assert [candidate["item_id"] for candidate in user_prompt["candidates"]] == [
+        story.id for story in stories[:8]
+    ]
+    assert request_payload["max_tokens"] == 800
+    assert "post_lines" not in properties
+    assert "impression_potential" not in properties
+    assert "model_confidence" not in properties
+    assert "url" not in request_payload["messages"][1]["content"]
