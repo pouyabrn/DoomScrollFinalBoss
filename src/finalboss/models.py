@@ -151,6 +151,28 @@ class EditorialItem(BaseModel):
         return " ".join(value.split())
 
 
+class LinkedInTopic(BaseModel):
+    """Bounded, grounded topic returned by the editorial model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str = Field(min_length=10, max_length=160)
+    why_now: str = Field(min_length=10, max_length=300)
+    evidence_item_ids: list[str] = Field(min_length=1, max_length=3)
+
+    @field_validator("topic", "why_now")
+    @classmethod
+    def one_line(cls, value: str) -> str:
+        return " ".join(value.split())
+
+    @field_validator("evidence_item_ids")
+    @classmethod
+    def unique_evidence(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("LinkedIn evidence item IDs must be unique")
+        return value
+
+
 class EditorialResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -177,6 +199,19 @@ class DigestItem(BaseModel):
     final_score: float = Field(ge=0.0, le=100.0)
 
 
+class LinkedInOpportunity(BaseModel):
+    """Rendered recommendation with application-computed, bounded scores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    topic: str = Field(min_length=10, max_length=160)
+    why_now: str = Field(min_length=10, max_length=300)
+    impression_potential: int = Field(ge=0, le=90)
+    model_confidence: int = Field(ge=0, le=65)
+    evidence_item_ids: list[str] = Field(min_length=1, max_length=3)
+    signal_basis: Literal["daily-news-only"] = "daily-news-only"
+
+
 class Digest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -187,6 +222,7 @@ class Digest(BaseModel):
     items: list[DigestItem] = Field(max_length=20)
     forecast_lines: list[str] = Field(min_length=2, max_length=3)
     forecast_confidence: Literal["low", "medium", "high"]
+    linkedin_opportunity: LinkedInOpportunity
     source_statuses: list[SourceStatus]
     model: str
     prompt_version: str

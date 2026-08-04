@@ -25,7 +25,7 @@ change the HTML-email experience.
 
 The application persists:
 
-- keyed recipient fingerprint, not the address;
+- one keyed fingerprint per recipient, not any address;
 - rendered pending/sent digest for crash-safe idempotency;
 - public story fingerprint, URL, source ID, and position;
 - provider message ID;
@@ -33,6 +33,10 @@ The application persists:
 
 It does not persist raw feed bodies, X/Reddit post bodies, social authors, comments,
 prompts, or full provider responses.
+
+The configured list supports up to ten addresses. It exists only in the private
+runtime secret and memory during delivery. The sender makes one provider request per
+address; it never exposes the list through `To`, CC, or BCC.
 
 The email body is retained in the private database because exactly-once crash recovery
 requires retrying the exact payload. Set a database retention/deletion policy that
@@ -44,6 +48,9 @@ matches your needs.
   persisted.
 - X: official Recent Search only; external article links and aggregate metrics are
   ephemeral corroboration; no post body persisted.
+- LinkedIn: no collection or scraping. The topic opportunity is generated from the
+  day's verified publisher stories. No profile, connection, audience, or post-analytics
+  data is requested or stored.
 
 Deleting a social record is therefore normally satisfied when the daily process exits.
 

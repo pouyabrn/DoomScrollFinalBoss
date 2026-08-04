@@ -31,8 +31,10 @@ class DigestRenderer:
         digest = _sanitize_for_html_parser(digest)
         subject = f"{subject_prefix} · {digest.edition_date.isoformat()}"
         accent_name, accent = _edition_accent(digest.edition_date)
+        evidence_ids = set(digest.linkedin_opportunity.evidence_item_ids)
         context = {
             "digest": digest,
+            "linkedin_evidence": [item for item in digest.items if item.story.id in evidence_ids],
             "healthy_count": sum(status.ok for status in digest.source_statuses),
             "source_count": len(digest.source_statuses),
             "accent_name": accent_name,
@@ -80,6 +82,12 @@ def _sanitize_for_html_parser(digest: Digest) -> Digest:
             "subtitle": clean_text(digest.subtitle, limit=200),
             "items": items,
             "forecast_lines": [clean_text(line, limit=240) for line in digest.forecast_lines],
+            "linkedin_opportunity": digest.linkedin_opportunity.model_copy(
+                update={
+                    "topic": clean_text(digest.linkedin_opportunity.topic, limit=160),
+                    "why_now": clean_text(digest.linkedin_opportunity.why_now, limit=300),
+                }
+            ),
         }
     )
 

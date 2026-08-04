@@ -14,6 +14,7 @@ from finalboss.models import (
     Digest,
     DigestItem,
     EditorialItem,
+    LinkedInOpportunity,
     SourceStatus,
     Story,
 )
@@ -46,6 +47,13 @@ def _digest(story: Story) -> Digest:
             "Early developer tests may show where the release is actually useful.",
         ],
         forecast_confidence="medium",
+        linkedin_opportunity=LinkedInOpportunity(
+            topic="A reasoning release changes the practical deployment question",
+            why_now="The release is fresh, technically relevant, and grounded in a primary source.",
+            impression_potential=82,
+            model_confidence=47,
+            evidence_item_ids=[story.id],
+        ),
         source_statuses=[SourceStatus(source_id="test", source_kind="rss", ok=True, item_count=1)],
         model="test-model",
         prompt_version="test-v1",
@@ -62,10 +70,60 @@ def test_renderer_escapes_untrusted_content(make_story: Callable[..., Story]) ->
     assert "onerror" not in rendered.html
     assert "Important release" in rendered.html
     assert "PREDICTION ENGINE / NEXT 7 DAYS" in rendered.text
+    assert "LINKEDIN TOPIC OPPORTUNITY / NEXT 24 HOURS" in rendered.text
+    assert rendered.text.index("PREDICTION ENGINE") < rendered.text.index(
+        "LINKEDIN TOPIC OPPORTUNITY"
+    )
+    assert '<h2 class="linkedin-title"' in rendered.html
+    assert "WHY THIS TOPIC" in rendered.html
+    assert "READY-TO-POST" not in rendered.text
     assert "@media only screen and (max-width: 620px)" in rendered.html
     assert "https://example1.com/news/model-launch-1" in rendered.html
     assert "fonts.googleapis.com" not in rendered.html
     assert "javascript:" not in rendered.html
+
+
+def test_renderer_escapes_linkedin_model_text(make_story: Callable[..., Story]) -> None:
+    digest = _digest(make_story())
+    hostile = digest.linkedin_opportunity.model_copy(
+        update={
+            "topic": '<img src=x onerror="alert(1)"> A grounded topic',
+            "why_now": '<script>alert("x")</script> This topic is grounded in a primary source.',
+        }
+    )
+    rendered = DigestRenderer().render(
+        digest.model_copy(update={"linkedin_opportunity": hostile}),
+        subject_prefix="Daily",
+    )
+    assert "<script>" not in rendered.html
+    assert "onerror" not in rendered.html
+    assert "A grounded topic" in rendered.html
+    assert "This topic is grounded" in rendered.html
+    assert "READY-TO-POST" not in rendered.html
+
+
+def test_linkedin_topic_hierarchy_is_topic_reason_then_scores(
+    make_story: Callable[..., Story],
+) -> None:
+    rendered = DigestRenderer().render(_digest(make_story()), subject_prefix="Daily")
+
+    topic_position = rendered.text.index(
+        "A reasoning release changes the practical deployment question"
+    )
+    reason_label_position = rendered.text.index("WHY THIS TOPIC")
+    reason_position = rendered.text.index(
+        "The release is fresh, technically relevant, and grounded in a primary source."
+    )
+    impression_position = rendered.text.index("IMPRESSION POTENTIAL")
+    confidence_position = rendered.text.index("MODEL CONFIDENCE")
+
+    assert (
+        topic_position
+        < reason_label_position
+        < reason_position
+        < impression_position
+        < confidence_position
+    )
 
 
 def test_renderer_plain_text_snapshot(make_story: Callable[..., Story]) -> None:

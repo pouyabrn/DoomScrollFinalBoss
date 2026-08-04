@@ -17,13 +17,14 @@ def test_doctor_reports_presence_without_secret_values(
     setenv("FINALBOSS_DATABASE_URL", f"sqlite:///{tmp_path / 'doctor.db'}")
     setenv("FINALBOSS_OPENROUTER_API_KEY", "do-not-print-openrouter")
     setenv("FINALBOSS_RESEND_API_KEY", "do-not-print-resend")
-    setenv("FINALBOSS_EMAIL_TO", "owner@example.com")
+    setenv("FINALBOSS_EMAIL_TO", "owner@example.com\nfriend@example.com")
     setenv("FINALBOSS_EMAIL_FROM", "Digest <digest@example.com>")
     setenv("FINALBOSS_PRIVACY_KEY", "x" * 32)
     assert main(["doctor", "--strict"]) == 0
     output = capsys.readouterr().out
     payload = json.loads(output)
     assert payload["ready"] is True
+    assert payload["recipient_count"] == 2
     assert "do-not-print" not in output
     assert "owner@example.com" not in output
 
@@ -61,6 +62,24 @@ def test_delivery_only_doctor_does_not_require_editor_credentials(
     payload = json.loads(capsys.readouterr().out)
     assert payload["openrouter_key"] is False
     assert payload["ready"] is True
+
+
+def test_doctor_rejects_test_sender_for_multiple_recipients(
+    tmp_path: Path,
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    setenv = monkeypatch.setenv
+    setenv("FINALBOSS_DATABASE_URL", f"sqlite:///{tmp_path / 'test-sender.db'}")
+    setenv("FINALBOSS_RESEND_API_KEY", "do-not-print-resend")
+    setenv("FINALBOSS_EMAIL_TO", "owner@example.com\nfriend@example.com")
+    setenv("FINALBOSS_EMAIL_FROM", "Final Boss <onboarding@resend.dev>")
+    setenv("FINALBOSS_PRIVACY_KEY", "x" * 32)
+    assert main(["doctor", "--delivery-only"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["recipient_count"] == 2
+    assert payload["sender_supports_recipient_count"] is False
+    assert "owner@example.com" not in json.dumps(payload)
 
 
 def test_force_resend_cannot_be_a_dry_run() -> None:

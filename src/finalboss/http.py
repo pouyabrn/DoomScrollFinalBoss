@@ -149,17 +149,25 @@ class BoundedHttpClient:
                         if len(body) > self._config.max_response_bytes:
                             raise ResponseTooLargeError("response exceeded configured byte limit")
                     return bytes(body), response.headers, response.status_code
-            except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError):
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in {429, 500, 502, 503, 504}:
+                    raise
                 if attempt >= attempts:
                     raise
                 retry_after = 0.0
-                if "response" in locals() and response.status_code in {429, 503}:
+                if exc.response.status_code in {429, 503}:
                     try:
-                        retry_after = float(response.headers.get("retry-after", "0"))
+                        retry_after = float(exc.response.headers.get("retry-after", "0"))
                     except ValueError:
                         retry_after = 0.0
                 jitter = secrets.randbelow(1000) / 1000
                 delay = min(30.0, max(retry_after, (2 ** (attempt - 1)) + jitter))
+                await asyncio.sleep(delay)
+            except (httpx.TimeoutException, httpx.NetworkError):
+                if attempt >= attempts:
+                    raise
+                jitter = secrets.randbelow(1000) / 1000
+                delay = min(30.0, (2 ** (attempt - 1)) + jitter)
                 await asyncio.sleep(delay)
         raise RuntimeError("unreachable HTTP retry state")
 

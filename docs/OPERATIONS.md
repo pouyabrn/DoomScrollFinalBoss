@@ -7,10 +7,10 @@ A normal run:
 1. applies migrations;
 2. passes `doctor --strict`;
 3. reports collected, clustered, candidate, and digest counts;
-4. reports `sent: true` with a provider message ID;
+4. reports `sent: true` plus safe aggregate recipient counts;
 5. pings the optional healthcheck.
 
-The logs deliberately do not show headlines or the recipient.
+The logs deliberately do not show headlines, addresses, or recipient fingerprints.
 
 ## Manual commands
 
@@ -70,6 +70,11 @@ The database unique key and Resend idempotency key are layered:
 Never delete a pending/failed row merely to force a send. Investigate provider status
 and retry the job.
 
+For a recipient batch, generation still happens once. Every normalized address gets an
+independent pending row and a single-recipient provider request. If three sends work
+and one fails, the next normal run skips the three successes and retries only the
+failed address with the same payload and idempotency key.
+
 ## Intentional same-day resend
 
 The GitHub workflow exposes `force-resend` with a required confirmation checkbox. It:
@@ -79,8 +84,9 @@ The GitHub workflow exposes `force-resend` with a required confirmation checkbox
 3. reserves a numbered resend row before provider contact;
 4. sends with `ai-digest/{recipient_hmac}/{date}/resend-{sequence}`;
 5. retries a pending/failed sequence with the same bytes and key;
-6. creates a new sequence only after the previous resend is recorded as sent;
-7. refuses more than `delivery.max_force_resends_per_day` successful resends.
+6. resumes unfinished recipients without resending successful peers;
+7. creates a new batch sequence only after all currently configured recipients finish;
+8. refuses more than `delivery.max_force_resends_per_day` successful resends.
 
 It does not recrawl, rerank, or consume OpenRouter tokens.
 
